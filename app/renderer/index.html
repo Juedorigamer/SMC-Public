@@ -104,6 +104,20 @@ button{font:600 12px 'Segoe UI';border-radius:9px;padding:8px 14px;cursor:pointe
 .skill-card{cursor:pointer}
 .skill-card:hover{border-color:var(--ac)}
 
+/* ---------- estadisticas ---------- */
+.stat-card{text-align:left;padding:14px 16px}
+.stat-big{font:700 26px/1.1 var(--mono);color:var(--ac2)}
+.stat-lbl{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+.stat-sub{font:11px var(--mono);color:var(--dim);margin-top:6px}
+.chart{display:flex;align-items:flex-end;gap:4px;height:110px;padding:8px 4px 0}
+.chart .bar{flex:1;background:linear-gradient(180deg,var(--ac),rgba(124,92,255,.25));border-radius:4px 4px 0 0;min-height:2px;position:relative}
+.chart .bar.zero{background:#151d2e}
+.chart .bar .tip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);font:9px var(--mono);color:var(--mut);white-space:nowrap;margin-bottom:2px;display:none}
+.chart .bar:hover .tip{display:block}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips .chip{font:10.5px var(--mono);padding:3px 9px;border-radius:99px;border:1px solid var(--line2);color:var(--mut);background:var(--card2)}
+.chips .chip.more{color:var(--dim)}
+
 /* ---------- diag ---------- */
 .diag-item{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
 .diag-item:last-child{border-bottom:0}
@@ -134,6 +148,7 @@ button{font:600 12px 'Segoe UI';border-radius:9px;padding:8px 14px;cursor:pointe
       <button class="nav-btn" data-view="tools"><span class="ic">⚙</span>Herramientas</button>
       <button class="nav-btn" data-view="llm"><span class="ic">◈</span>LLM &amp; Providers</button>
       <button class="nav-btn" data-view="skills"><span class="ic">▣</span>Skills</button>
+      <button class="nav-btn" data-view="stats"><span class="ic">▚</span>Estadísticas</button>
       <button class="nav-btn" data-view="diag"><span class="ic">✚</span>Diagnóstico</button>
     </nav>
     <div class="sidefoot">
@@ -340,6 +355,41 @@ button{font:600 12px 'Segoe UI';border-radius:9px;padding:8px 14px;cursor:pointe
         <div class="card hidden" id="docViewer" style="margin-top:14px">
           <h3><span class="dot">●</span> <span id="docTitle">—</span></h3>
           <div id="docText">—</div>
+        </div>
+      </section>
+
+      <!-- ============ ESTADISTICAS ============ -->
+      <section class="view" id="view-stats">
+        <h1>Estadísticas</h1>
+        <div class="sub">Agregado de todas las corridas guardadas en <code>out/</code>. Se recalcula al entrar a la sección (botón refrescar).</div>
+        <div class="inline" style="margin-bottom:12px">
+          <button class="btn btn-primary btn-sm" id="btnStats">Recalcular</button>
+          <span class="hint" id="statsHint">—</span>
+        </div>
+
+        <div class="grid g3" style="margin-bottom:14px">
+          <div class="card stat-card"><div class="stat-big" id="stSessions">—</div><div class="stat-lbl">corridas</div><div class="stat-sub" id="stSessionsSub">—</div></div>
+          <div class="card stat-card"><div class="stat-big" id="stCommands">—</div><div class="stat-lbl">comandos enviados</div><div class="stat-sub" id="stCommandsSub">—</div></div>
+          <div class="card stat-card"><div class="stat-big" id="stLatency">—</div><div class="stat-lbl">latencia promedio</div><div class="stat-sub" id="stLatencySub">—</div></div>
+          <div class="card stat-card"><div class="stat-big" id="stNamespaces">—</div><div class="stat-lbl">namespaces vistos</div><div class="stat-sub" id="stNamespacesSub">—</div></div>
+          <div class="card stat-card"><div class="stat-big" id="stPlugins">—</div><div class="stat-lbl">plugins detectados</div><div class="stat-sub" id="stPluginsSub">—</div></div>
+          <div class="card stat-card"><div class="stat-big" id="stWindows">—</div><div class="stat-lbl">GUIs capturadas</div><div class="stat-sub" id="stWindowsSub">—</div></div>
+        </div>
+
+        <div class="card">
+          <h3><span class="dot">●</span> Actividad (últimos 14 días)</h3>
+          <div id="activityChart" class="chart"></div>
+        </div>
+
+        <div class="grid g2" style="margin-top:14px">
+          <div class="card">
+            <h3><span class="dot">●</span> Namespaces acumulados</h3>
+            <div id="stNsList" class="chips">—</div>
+          </div>
+          <div class="card">
+            <h3><span class="dot">●</span> Plugins acumulados</h3>
+            <div id="stPlList" class="chips">—</div>
+          </div>
         </div>
       </section>
 

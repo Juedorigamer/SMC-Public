@@ -10,7 +10,7 @@
 //  - Lanzar/detener ViaProxy local.
 //  - Generar el informe Markdown desde el JSON de salida.
 
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const net = require('net');
@@ -206,8 +206,9 @@ function createWindow() {
     height: 820,
     minWidth: 980,
     minHeight: 700,
-    backgroundColor: '#0b0c10',
+    backgroundColor: '#07090f',
     title: 'SMC GUI',
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -285,6 +286,9 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Sin barra de menú de Electron (File/Edit/View/Window): la app vive por
+  // su propia navegación y no necesita atajos de menú.
+  Menu.setApplicationMenu(null);
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -726,6 +730,7 @@ ipcMain.handle('app:lastPaths', async () => ({ lastJson, lastReport }));
 
 const PROVIDERS_FILE = path.join(__dirname, 'providers.json');
 const llmDigest = require('../tools/llm-digest');
+const { collectStats } = require('./stats');
 
 function readProviders() {
   try {
@@ -941,6 +946,16 @@ ipcMain.handle('docs:read', async (_e, rel) => {
   if (!inRoot || !allowed || relPath.includes('..')) return { ok: false, error: 'ruta no permitida' };
   try {
     return { ok: true, text: fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '') };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+// ---------------------------------------------------------------- estadisticas
+
+ipcMain.handle('stats:collect', async () => {
+  try {
+    return { ok: true, stats: collectStats(OUT_DIR) };
   } catch (e) {
     return { ok: false, error: e.message };
   }

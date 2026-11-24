@@ -33,6 +33,15 @@ const els = {
   skillsGrid: $('skillsGrid'), docViewer: $('docViewer'), docTitle: $('docTitle'), docText: $('docText'),
   // diag
   btnDiag: $('btnDiag'), diagGrid: $('diagGrid'),
+  // stats
+  btnStats: $('btnStats'), statsHint: $('statsHint'),
+  stSessions: $('stSessions'), stSessionsSub: $('stSessionsSub'),
+  stCommands: $('stCommands'), stCommandsSub: $('stCommandsSub'),
+  stLatency: $('stLatency'), stLatencySub: $('stLatencySub'),
+  stNamespaces: $('stNamespaces'), stNamespacesSub: $('stNamespacesSub'),
+  stPlugins: $('stPlugins'), stPluginsSub: $('stPluginsSub'),
+  stWindows: $('stWindows'), stWindowsSub: $('stWindowsSub'),
+  activityChart: $('activityChart'), stNsList: $('stNsList'), stPlList: $('stPlList'),
   // logs
   logdock: $('logdock'), logdockHead: $('logdockHead'), logs: $('logs'),
   footerOut: $('footerOut'), btnCopyLog: $('btnCopyLog'), btnClearLog: $('btnClearLog'),
@@ -918,6 +927,96 @@ els.btnDiag.addEventListener('click', async () => {
   setPill(els.vpStatus, d.ports.viaproxy ? 'ViaProxy: activo' : 'ViaProxy: caído', d.ports.viaproxy ? 'ok' : 'muted');
 });
 
+// ---------------------------------------------------------------- ESTADISTICAS
+
+function renderChips(container, list) {
+  container.innerHTML = '';
+  if (!list || !list.length) {
+    container.innerHTML = '<span class="hint">sin datos todavía</span>';
+    return;
+  }
+  const shown = list.slice(0, 40);
+  for (const name of shown) {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.textContent = name;
+    container.appendChild(chip);
+  }
+  if (list.length > shown.length) {
+    const more = document.createElement('span');
+    more.className = 'chip more';
+    more.textContent = `+${list.length - shown.length} más`;
+    container.appendChild(more);
+  }
+}
+
+function renderStats(s) {
+  els.stSessions.textContent = s.sessions.total;
+  els.stSessionsSub.textContent = s.sessions.total
+    ? `${s.sessions.readOnly} read-only · ${s.sessions.withWrites} con escrituras · ${s.sessions.aborted} abortadas${s.sessions.lastAt ? ` · última: ${s.sessions.lastAt.slice(0, 16).replace('T', ' ')} (${s.sessions.lastHost || '?'})` : ''}`
+    : 'sin corridas en out/';
+
+  els.stCommands.textContent = s.commands.sent;
+  els.stCommandsSub.textContent = s.commands.sent || s.commands.blocked
+    ? `${s.commands.blocked} bloqueados por el guard (${s.commands.blockRatio}%)`
+    : '—';
+
+  els.stLatency.textContent = s.latency.avgMs != null ? `${s.latency.avgMs} ms` : '—';
+  els.stLatencySub.textContent = s.latency.count
+    ? `max ${s.latency.maxMs} ms · ${s.latency.count} mediciones`
+    : 'sin mediciones';
+
+  els.stNamespaces.textContent = s.surface.namespaces;
+  els.stNamespacesSub.textContent = `${s.surface.commandsSeen} comandos visibles acumulados`;
+  els.stPlugins.textContent = s.surface.plugins;
+  els.stPluginsSub.textContent = `${s.files.scanned} JSON/s escaneado/s · ${s.files.skipped} ignorado/s`;
+  els.stWindows.textContent = s.surface.windows;
+  els.stWindowsSub.textContent = `${s.surface.packs} resource packs ofrecidos · ${s.errors.count} avisos/errores`;
+
+  // barras: últimos 14 días
+  els.activityChart.innerHTML = '';
+  const max = Math.max(1, ...s.activity.map((a) => a.count));
+  for (const a of s.activity) {
+    const bar = document.createElement('div');
+    bar.className = 'bar' + (a.count ? '' : ' zero');
+    bar.style.height = `${Math.max(2, Math.round((a.count / max) * 100))}%`;
+    const tip = document.createElement('span');
+    tip.className = 'tip';
+    tip.textContent = `${a.date}: ${a.count}`;
+    bar.appendChild(tip);
+    bar.title = `${a.date}: ${a.count} corrida/s`;
+    els.activityChart.appendChild(bar);
+  }
+
+  renderChips(els.stNsList, s.surface.namespacesList);
+  renderChips(els.stPlList, s.surface.pluginsList);
+
+  els.statsHint.textContent = `calculado sobre out/ · ${new Date().toLocaleTimeString('es-AR', { hour12: false })}`;
+}
+
+async function loadStats() {
+  try {
+    const res = await window.api.collectStats();
+    if (res && res.ok) {
+      renderStats(res.stats);
+      return true;
+    }
+    appendLog('err', `[stats] ${res && res.error}`);
+  } catch (e) {
+    appendLog('err', `[stats] ${e.message}`);
+  }
+  return false;
+}
+
+els.btnStats.addEventListener('click', loadStats);
+
+// refrescar stats al entrar a la sección
+document.querySelectorAll('.nav-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.view === 'stats') loadStats();
+  });
+});
+
 // ---------------------------------------------------------------- autorun (CLI --autorun)
 
 window.__autorun = async (cfg) => {
@@ -967,6 +1066,7 @@ window.__autorun = async (cfg) => {
   renderTools();
   loadSkills();
   loadProviders();
+  loadStats();
   try {
     const d = await window.api.getDefaults();
     if (d) {

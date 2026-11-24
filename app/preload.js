@@ -23,11 +23,12 @@ contextBridge.exposeInMainWorld('api', {
   llmProvidersSave: (providers) => ipcRenderer.invoke('llm:providers:save', providers),
   llmAnalyze: (cfg) => ipcRenderer.invoke('llm:analyze', cfg),
 
-  // Tools / skills / docs / diagnóstico
+  // Tools / skills / docs / stats / diagnóstico
   runTool: (cfg) => ipcRenderer.invoke('tools:run', cfg),
   listSkills: () => ipcRenderer.invoke('skills:list'),
   readDoc: (rel) => ipcRenderer.invoke('docs:read', rel),
   runDiag: () => ipcRenderer.invoke('diag:run'),
+  collectStats: () => ipcRenderer.invoke('stats:collect'),
 
   onLog: (cb) => {
     const handler = (_e, payload) => cb(payload);
