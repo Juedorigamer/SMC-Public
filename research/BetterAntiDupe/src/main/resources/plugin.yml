@@ -1,0 +1,38 @@
+name: BetterAntiDupe
+version: '${version}'
+main: com.esmpfun.antidupe.BetterAntiDupe
+api-version: '${apiVersion}'
+prefix: DUPE »
+load: STARTUP
+authors: [ darkstarworks ]
+description: Better Anti Dupe - Chain of Custody item-flow auditor
+website: https://github.com/darkstarworks
+
+# Folia compatibility (PaperMC's regionised threading fork).
+folia-supported: true
+
+commands:
+  antidupe:
+    description: Better Anti Dupe base command
+    usage: /<command> <ledger|update|help>
+    aliases: [adp, betterantidupe]
+
+permissions:
+  antidupe.admin:
+    description: Full admin access (ledger commands AND dupe alerts)
+    default: op
+    children:
+      antidupe.ledger: true
+      antidupe.alerts: true
+  antidupe.ledger:
+    description: Access to Chain of Custody ledger commands (/adp ledger ...)
+    default: op
+  antidupe.alerts:
+    description: Receive in-game dupe alerts, with no command access
+    default: op
+  antidupe.witness.exempt:
+    description: Never counted as a Proof-of-Witness witness (e.g. vanished staff)
+    default: false
+  antidupe.tag.view:
+    description: See the ownership tag in your own client (bypass hide_tag_from_clients)
+    default: false

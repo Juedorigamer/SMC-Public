@@ -1,0 +1,15 @@
+# Vistas de solo lectura (sin sell/claim/open)
+/ecocrates keys
+/ecocrates preview
+/talismans bag
+/keys keys
+/keys preview
+/crates keys
+/crates preview
+/ah selling
+/ah expired
+/ah purchased
+/ah history
+/ah option
+/ah page 1
+/axshulker

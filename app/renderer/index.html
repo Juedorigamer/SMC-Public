@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SMC GUI</title>
+<style>
+  :root {
+    --bg: #0b0c10;
+    --panel: #15161f;
+    --panel2: #1a1b26;
+    --accent: #00d2ff;
+    --ok: #00ff88;
+    --warn: #ffcc00;
+    --err: #ff4444;
+    --muted: #8a8fa3;
+    --border: #2c2e3a;
+    --text: #e6e8ef;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    overflow: hidden;
+  }
+  .shell {
+    display: grid;
+    grid-template-columns: 400px 1fr;
+    height: 100vh;
+  }
+  .left {
+    overflow-y: auto;
+    padding: 14px;
+    border-right: 1px solid var(--border);
+    background: #0e0f15;
+  }
+  .right {
+    display: flex;
+    flex-direction: column;
+    padding: 14px;
+    min-width: 0;
+  }
+  h1 {
+    font-size: 1rem;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    letter-spacing: 0.3px;
+  }
+  .badge {
+    font-size: 0.68rem;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-weight: 400;
+  }
+  h2 {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    margin: 16px 0 8px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--border);
+  }
+  h2:first-of-type { margin-top: 0; }
+  .field { margin-bottom: 10px; }
+  .field label {
+    display: block;
+    font-size: 0.76rem;
+    color: var(--muted);
+    margin-bottom: 3px;
+  }
+  .row { display: flex; gap: 10px; }
+  .row > .field { flex: 1; min-width: 0; }
+  input[type="text"], input[type="number"], input[type="time"], select {
+    width: 100%;
+    background: #0a0b10;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 8px;
+    border-radius: 5px;
+    font-size: 0.85rem;
+    font-family: inherit;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  input[readonly] { color: var(--muted); }
+  .with-btn { display: flex; gap: 6px; }
+  .with-btn input { flex: 1; }
+  .btn {
+    border: none;
+    border-radius: 5px;
+    padding: 8px 12px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: filter .15s, opacity .15s;
+    white-space: nowrap;
+  }
+  .btn:hover { filter: brightness(1.12); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+  .btn-primary { background: var(--accent); color: #001018; }
+  .btn-danger { background: var(--err); color: #fff; }
+  .btn-ghost { background: #232533; color: var(--text); border: 1px solid var(--border); }
+  .btn-ok { background: #1f7a4d; color: #eafff3; }
+  .btn-sm { padding: 5px 9px; font-size: 0.76rem; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .actions .btn { flex: 1; min-width: 100px; }
+
+  .switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 0;
+  }
+  .switch-row label { font-size: 0.82rem; color: var(--text); }
+  .switch { position: relative; width: 42px; height: 22px; flex: 0 0 auto; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; inset: 0;
+    background: #333645;
+    border-radius: 11px;
+    transition: .18s;
+    cursor: pointer;
+  }
+  .slider:before {
+    content: '';
+    position: absolute;
+    width: 16px; height: 16px;
+    left: 3px; top: 3px;
+    background: #cfd3e0;
+    border-radius: 50%;
+    transition: .18s;
+  }
+  input:checked + .slider { background: var(--accent); }
+  input:checked + .slider:before { transform: translateX(20px); background: #fff; }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .pill-ok { background: rgba(0,255,136,.12); color: var(--ok); border-color: rgba(0,255,136,.5); }
+  .pill-err { background: rgba(255,68,68,.12); color: var(--err); border-color: rgba(255,68,68,.5); }
+  .pill-warn { background: rgba(255,204,0,.12); color: var(--warn); border-color: rgba(255,204,0,.5); }
+  .pill-info { background: rgba(0,210,255,.12); color: var(--accent); border-color: rgba(0,210,255,.5); }
+  .pill-muted { background: #232533; color: var(--muted); border-color: var(--border); }
+
+  .note {
+    font-size: 0.72rem;
+    color: var(--muted);
+    line-height: 1.45;
+    margin-top: 6px;
+  }
+  .warnbox {
+    background: rgba(255,204,0,.08);
+    border: 1px solid rgba(255,204,0,.35);
+    border-radius: 6px;
+    padding: 9px 10px;
+    font-size: 0.76rem;
+    color: var(--warn);
+    line-height: 1.45;
+    margin-top: 8px;
+  }
+  .hidden { display: none !important; }
+
+  .statusbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .logs-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .logs-head .title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+  }
+  #logs {
+    flex: 1;
+    min-height: 0;
+    background: #05060a;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 10px;
+    overflow-y: auto;
+    font-family: 'Consolas', 'Cascadia Mono', monospace;
+    font-size: 0.76rem;
+    line-height: 1.45;
+  }
+  .log-entry {
+    padding: 1px 4px;
+    border-left: 2px solid transparent;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .log-out { border-left-color: var(--ok); color: #b9f5d3; }
+  .log-err { border-left-color: var(--err); color: #ff9b9b; }
+  .log-info { border-left-color: var(--accent); color: #9fe8fb; }
+  .log-warn { border-left-color: var(--warn); color: #ffe08a; }
+  .log-viaproxy { border-left-color: #a78bfa; color: #d3c5ff; }
+  .log-time { color: #5b6070; margin-right: 7px; }
+  .log-empty { color: var(--muted); font-style: italic; }
+
+  .footer {
+    margin-top: 8px;
+    font-size: 0.68rem;
+    color: #565a6b;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2e3140; border-radius: 5px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3d4154; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <!-- Columna de configuración -->
+  <aside class="left">
+    <h1>⚙️ SMC GUI <span class="badge">Electron</span></h1>
+
+    <h2>1. Conexión</h2>
+    <div class="row">
+      <div class="field" style="flex:2">
+        <label>Host</label>
+        <input type="text" id="host" value="127.0.0.1">
+      </div>
+      <div class="field" style="flex:1">
+        <label>Puerto</label>
+        <input type="number" id="port" value="25565" min="1" max="65535">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Versión del cliente</label>
+        <select id="version">
+          <option value="auto">auto (detectar)</option>
+          <option value="26.1">26.1 (775)</option>
+          <option value="1.21.8">1.21.8 (772)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Auth</label>
+        <select id="auth">
+          <option value="offline">offline (cracked)</option>
+          <option value="microsoft">microsoft</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Cuenta autorizada</label>
+      <input type="text" id="account" value="Auditor" placeholder="Cuenta de la auditoría">
+    </div>
+    <div class="field">
+      <label>Archivo de contraseña (login-file)</label>
+      <div class="with-btn">
+        <input type="text" id="loginFile" readonly placeholder="(sin archivo)">
+        <button class="btn btn-ghost btn-sm" id="btnPickLogin">Elegir</button>
+      </div>
+    </div>
+    <div class="switch-row">
+      <label for="direct">Acceso directo (sin ViaProxy)</label>
+      <span class="switch">
+        <input type="checkbox" id="direct" checked>
+        <span class="slider"></span>
+      </span>
+    </div>
+    <div class="row" style="align-items:center; margin-top:2px;">
+      <span class="pill pill-muted" id="vpStatus">ViaProxy: detenido</span>
+      <div style="display:flex; gap:6px; margin-left:auto;">
+        <button class="btn btn-ghost btn-sm" id="btnVpStart">Iniciar VP</button>
+        <button class="btn btn-ghost btn-sm" id="btnVpStop">Detener VP</button>
+      </div>
+    </div>
+
+    <h2>2. Modalidad / Backend</h2>
+    <div class="field">
+      <label>Modalidad</label>
+      <select id="mode">
+        <option value="towny">⚔ Towny</option>
+        <option value="skyblock">✦ Skyblock</option>
+        <option value="lobby">🏠 Lobby (sin cambio)</option>
+        <option value="eventos">🎪 Eventos</option>
+        <option value="otro">Otro…</option>
+      </select>
+    </div>
+    <div class="field hidden" id="modeOtro">
+      <label>Nombre del backend</label>
+      <input type="text" id="modeOtroValue" placeholder="ej. supervivencia, creative, facciones…">
+    </div>
+
+    <h2>3. Ventana y tiempo</h2>
+    <div class="row">
+      <div class="field">
+        <label>Desde (HH:MM)</label>
+        <input type="time" id="winFrom" value="12:00">
+      </div>
+      <div class="field">
+        <label>Hasta (HH:MM)</label>
+        <input type="time" id="winUntil" value="13:00">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Sesión (min)</label>
+        <input type="number" id="sessionMins" value="10" min="1" max="120">
+      </div>
+      <div class="field">
+        <label>Intervalo entre comandos (s)</label>
+        <input type="number" id="intervalSec" value="5" min="1" max="60">
+      </div>
+    </div>
+    <div style="margin-top:4px;">
+      <span class="pill pill-info" id="pillWindow">Ventana: —</span>
+    </div>
+
+    <h2>4. Nivel de sondeo</h2>
+    <div class="field">
+      <label>Nivel</label>
+      <select id="level">
+        <option value="minimo">Mínimo (sin probes, sin tab)</option>
+        <option value="estandar" selected>Estándar (probes base + tab)</option>
+        <option value="agresivo">Agresivo (probes extra + trace + packet-log)</option>
+      </select>
+    </div>
+    <div id="aggressiveConfirm" class="hidden">
+      <div class="warnbox">
+        <strong>Modo agresivo.</strong> Aumenta la superficie observada y la probabilidad de detección.
+        Para habilitarlo necesitás las dos casillas y la frase exacta.
+      </div>
+      <div style="margin-top:8px; display:flex; flex-direction:column; gap:7px;">
+        <label style="display:flex; gap:8px; align-items:flex-start; font-size:0.78rem;">
+          <input type="checkbox" id="aggressiveCheck">
+          Entiendo que este nivel puede ser detectado como comportamiento de bot.
+        </label>
+        <label style="display:flex; gap:8px; align-items:flex-start; font-size:0.78rem;">
+          <input type="checkbox" id="aggressiveAuth">
+          Tengo autorización escrita del dueño para este nivel.
+        </label>
+        <input type="text" id="aggressivePhrase" placeholder="Escribí: ACEPTÓ RIESGO DE DETECCIÓN">
+      </div>
+    </div>
+
+    <h2>5. Opciones avanzadas</h2>
+    <div class="switch-row">
+      <label for="freeze">Congelar movimiento (--freeze)</label>
+      <span class="switch">
+        <input type="checkbox" id="freeze" checked>
+        <span class="slider"></span>
+      </span>
+    </div>
+    <div class="switch-row">
+      <label for="trace">Trace de eventos (--trace)</label>
+      <span class="switch">
+        <input type="checkbox" id="trace" checked>
+        <span class="slider"></span>
+      </span>
+    </div>
+    <div class="switch-row">
+      <label for="packetLog">Log de paquetes (--packet-log)</label>
+      <span class="switch">
+        <input type="checkbox" id="packetLog">
+        <span class="slider"></span>
+      </span>
+    </div>
+    <div class="switch-row">
+      <label for="allowWrites" style="color:var(--warn);">Permitir escritura (--allow-writes)</label>
+      <span class="switch">
+        <input type="checkbox" id="allowWrites">
+        <span class="slider"></span>
+      </span>
+    </div>
+    <div id="writesConfirm" class="hidden">
+      <div class="warnbox">
+        <strong>Escritura habilitada.</strong> Esto puede comprar, vender, reclamar o modificar estado.
+        Solo con aprobación escrita y responsable de rollback asignado.
+      </div>
+      <input type="text" id="writesPhrase" style="margin-top:8px;" placeholder="Escribí: ENTIENDO QUE ESTO MODIFICA ESTADO">
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="btnStart">Iniciar sesión</button>
+      <button class="btn btn-danger" id="btnKill" disabled>Kill switch</button>
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" id="btnReport" disabled>Generar informe</button>
+      <button class="btn btn-ghost" id="btnOpenReport" disabled>Abrir informe</button>
+      <button class="btn btn-ghost" id="btnOpenOut">Abrir out/</button>
+    </div>
+    <div class="note">
+      La ventana horaria la valida el proceso principal. Si estás fuera de la franja,
+      el botón falla aunque la interfaz lo permita.
+    </div>
+  </aside>
+
+  <!-- Columna de estado y logs -->
+  <main class="right">
+    <div class="statusbar">
+      <span class="pill pill-muted" id="pillState">Detenido</span>
+      <span class="pill pill-muted" id="pillTimer">Sesión: --:--</span>
+      <span class="pill pill-muted" id="pillCount">Líneas: 0</span>
+      <span class="pill pill-muted" id="pillOut" title="">JSON: —</span>
+    </div>
+    <div class="logs-head">
+      <span class="title">Logs en vivo</span>
+      <div style="display:flex; gap:6px;">
+        <button class="btn btn-ghost btn-sm" id="btnCopyLog">Copiar</button>
+        <button class="btn btn-ghost btn-sm" id="btnClearLog">Limpiar</button>
+      </div>
+    </div>
+    <div id="logs"><div class="log-empty">Sin actividad todavía.</div></div>
+    <div class="footer">
+      <span>SMC · solo sondeos autorizados · sin evasión de anti-bot</span>
+      <span id="footerOut"></span>
+    </div>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

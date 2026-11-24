@@ -1,0 +1,10 @@
+# GUIs y ayudas de solo lectura en Skyblock
+/ah
+/auction
+/spawnershop
+/minionsshop
+/axshulker
+/ecocrates
+/talismans
+/keys
+/crates

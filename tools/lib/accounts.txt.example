@@ -1,0 +1,11 @@
+# Allowlist de cuentas para las tools en vivo (opcional).
+# Una cuenta por línea. Las líneas que empiezan con # se ignoran.
+#
+# Si este archivo existe y tiene al menos una cuenta, las tools en vivo
+# (recon, ah-test, kit-test, packet-race, cf-test, towny-probe, version-probe)
+# rechazan correr con cualquier cuenta que no esté listada (exit 5).
+# Si el archivo no existe o está vacío, cualquier cuenta no vacía pasa
+# (con una advertencia en consola).
+#
+# Ejemplo (descomentá y editá):
+# MiCuentaAuditora

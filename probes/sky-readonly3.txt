@@ -1,0 +1,9 @@
+# GUIs de almacenamiento/recetas y previews (sin abrir cajas ni borrar items)
+/recipes
+/stash
+/disposal
+/bin
+/itemedit
+# El comando de preview de crates de tu servidor objetivo va acá.
+# Ejemplo de patrón (comando real del server que quieras auditar):
+# /ecrates preview <nombre-de-la-crate>

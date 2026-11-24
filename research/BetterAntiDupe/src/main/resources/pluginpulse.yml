@@ -1,0 +1,21 @@
+# PluginPulse updater configuration.
+# https://github.com/darkstarworks/PluginPulse
+#
+# Modrinth is the primary source; GitHub Releases is the fallback.
+modrinth: betterantidupe
+github: ESMP-FUN/BetterAntiDupe
+
+permission: antidupe.admin
+command-root: /antidupe
+user-agent-contact: https://github.com/ESMP-FUN/BetterAntiDupe
+prefix: "<gold>[AntiDupe]</gold>"
+
+# off | check-only | notify | download | auto-stage
+# Server owners can override this (and check-interval-hours) from an
+# `update:` section in BetterAntiDupe's own config.yml.
+mode: notify
+check-interval-hours: 6
+
+# BetterAntiDupe ships separate "-mc26" (26.0 to 26.2) and "-mc263" (26.3) builds.
+# Filled in at build time, so each jar follows its own release line.
+track: ${track}

@@ -1,0 +1,415 @@
+# =============================================================================
+# BetterAntiDupe
+# =============================================================================
+# The defaults work. If you just installed this, start the server and carry on.
+#
+# Come back here when you want one of these:
+#
+#   Alerts in Discord, Telegram or Slack ....... [Part 1]
+#   The plugin to take duped items back ........ [Part 2]
+#   Several servers sharing one anti-dupe ...... [Part 3]
+#
+#   Blocking the classic dupe machines ......... [Blocking]
+#   Making it stricter or more relaxed ......... [Detection]
+#   Hiding the plugin from players ............. [Look]
+#   Everything else ............................ [Advanced]
+#
+# Which items are watched, and how many of each is too many, live in the file
+# next to this one: materials.yml
+# =============================================================================
+
+# Language for all in-game messages. Bundled options:
+#   en (English), pt_BR (Português do Brasil), es (Español),
+#   de (Deutsch), ru (Русский), pl (Polski)
+# Your own edits in messages.yml always win over the bundled translation,
+# and anything a translation is missing falls back to English.
+language: en
+
+
+# =============================================================================
+# [Part 1] - Telling you when something happens
+# =============================================================================
+# Admins in game always get a message. This section is for getting the same
+# alerts somewhere you will actually see them when you are not playing.
+# Everything here is off until you fill something in.
+
+notifications:
+  # Only send alerts this serious or worse: LOW, MEDIUM, HIGH, CRITICAL.
+  # HIGH is a good default, so small wobbles do not fill your channel.
+  min_severity: HIGH
+
+  # Wait at least this many seconds before sending the same kind of alert
+  # about the same player and item again. Stops one incident becoming fifty
+  # messages.
+  rate_limit_seconds: 30
+
+  # Discord: channel settings -> Integrations -> Webhooks -> New Webhook,
+  # then paste the webhook URL here.
+  discord:
+    enabled: false
+    webhook_url: ""
+
+  # Telegram: create a bot with @BotFather to get the bot token. The chat id
+  # is the group or channel the bot should post in (add the bot there first;
+  # @userinfobot or @getidsbot can tell you the id).
+  telegram:
+    enabled: false
+    bot_token: ""
+    chat_id: ""
+
+  # Slack: create an Incoming Webhook (api.slack.com/messaging/webhooks)
+  # and paste the URL here.
+  slack:
+    enabled: false
+    webhook_url: ""
+
+  # Anything else (n8n, Zapier, your own bot). Sends an HTTP POST whose body
+  # describes the alert:
+  # { "plugin", "type", "severity", "player", "playerUuid", "material",
+  #   "details", "timestamp" }
+  generic:
+    enabled: false
+    url: ""
+
+
+# =============================================================================
+# [Part 2] - What happens when a duper is caught
+# =============================================================================
+# Out of the box the plugin only tells you. It never takes anything off a
+# player unless you turn both of the first two switches the right way.
+
+# Watch and record only. While this is on, nothing is ever removed from
+# anyone's inventory, no matter what the rest of this section says. Leave it
+# on until you have watched the alerts for a while and trust them.
+shadow_mode: true
+
+# Take duped items back automatically. Only does anything with
+# shadow_mode: false above. When it acts, it removes only the surplus, the
+# amount the player has beyond what the plugin can account for, and never
+# touches items it did not put a tag on.
+auto_delete_dupes: false
+
+enforcement:
+  # How sure the plugin has to be before it removes anything.
+  #   CRITICAL - only the one signal that has essentially no false alarms
+  #   HIGH     - strong evidence (recommended if you turn removal on)
+  #   MEDIUM   - a clear surplus
+  #   LOW      - anything at all over the expected amount (not advised)
+  min_severity: HIGH
+
+  # Never take more than this many items in one go, as a safety net. For
+  # example 64 means one stack at most. Set to 0 for no limit.
+  max_items_per_action: 0
+
+  # Tell the player something was taken back. With this off the removal is
+  # silent to them and only shows in your console and the item's history.
+  notify_player: true
+
+# Run a console command when you confirm a duper with /adp ledger confirm.
+# {player} is replaced with their name. Leave empty to do nothing.
+# For example: "tempban {player} 7d Item duplication"
+on_confirm_command: ""
+
+# =============================================================================
+# [Part 3] - Running more than one server
+# =============================================================================
+# ▰▰▰▰ One server only? Nothing here needs changing. Skip to [Blocking]. ▰▰▰▰
+#
+# On a network, items move between servers. Redis lets every server share one
+# record, so an item duped on one and carried to another is still spotted.
+
+storage:
+  # Where the plugin keeps its records.
+  #   SQLITE - a file next to this one. Nothing to install. Right for one server.
+  #   REDIS  - shared by every server pointing at the same Redis. Needs Redis running.
+  #   MEMORY - kept in memory and thrown away on restart. For testing only.
+  backend: SQLITE
+
+  # Filename for the SQLITE records, inside this plugin's folder.
+  sqlite_ledger_file: "ledger.db"
+
+# Only read when backend is REDIS above.
+redis:
+  # Where Redis is running. For example "10.0.0.5" or "redis.example.com".
+  host: "localhost"
+  port: 6379
+
+  # Which numbered Redis database to use. Give this plugin one of its own so
+  # it cannot collide with anything else you run on the same Redis.
+  database: 1
+
+  # Leave empty if your Redis has no password.
+  password: ""
+
+  # Give up on a Redis command after this many seconds. Keeps one unreachable
+  # Redis from holding everything else up.
+  timeout: 10
+
+
+# =============================================================================
+# [Blocking] - Stopping the classic dupe machines
+# =============================================================================
+# These contraptions copy blocks in the world before any item exists, so there
+# is nothing to record and nothing to compare. Instead the trick each one
+# depends on is simply not allowed to work. All on by default.
+
+# Rails and carpets: a piston is not allowed to move a block with a rail or
+# carpet sitting on it, which is the detach-mid-move trick every rail and
+# carpet duper is built around. Also covers the version where a moving slime
+# or honey block drags the rail or carpet off its side or underside.
+# Worth knowing: while TNT dupers are also blocked below, contraptions that
+# pop carpets or rails off with pistons stop working, and a slime flying
+# machine will not move while pressed against a rail or carpet. Both are legal
+# in vanilla but rare outside dupers. Allowing TNT dupers below switches these
+# two settings to the gentler method described there, and those contraptions
+# keep working again.
+prevent-rail-dupers: true
+prevent-carpet-dupers: true
+
+# Sand, gravel, concrete powder and dragon eggs are not allowed to fall
+# through a portal, which is the end-portal sand duper family. Pistons pushing
+# sand are deliberately left alone, so flying machines and normal farms work.
+prevent-gravity-dupers: true
+
+# Pistons are not allowed to move TNT. Turn this off if your players run TNT
+# duper world eaters on purpose, as some anarchy and tech servers allow.
+# With this off, the rail and carpet settings above switch to a gentler method:
+# the piston is left alone so the machine keeps running, and the extra rail or
+# carpet is removed the moment it pops out. TNT duper world eaters carry a rail
+# and a minecart to work, so they keep running, they just stop handing out free
+# rails. Every kind of rail is covered, including detector rails.
+prevent-tnt-dupers: true
+
+# Close a container's window when the container itself goes away: a shulker
+# box or chest broken or blown up, a donkey or chest boat whose chunk unloads.
+# Otherwise a player can keep taking from a window whose chest no longer
+# exists, while the dropped chest still holds the same items. Costs nothing:
+# a window that was legitimately open simply closes.
+prevent-container-desync-dupers: true
+
+# Catch players whose game hides a menu without telling the server it closed.
+# Cheat clients do this on purpose: the server still thinks the menu is open,
+# and that is the first step of most dupes in other plugins' menus (backpacks,
+# ender chest plugins, shulker preview plugins, storage menus). A normal game
+# always closes a menu before the player can mine, build, hit, drop an item,
+# switch hotbar slot or type a command, so doing any of that with a menu still
+# open is stopped, the menu is closed, and staff get an alert.
+# Costs nothing for normal players. Actions in the first second after a menu
+# opens are always allowed, so a slow connection never trips it.
+prevent-hidden-menu-dupers: true
+
+# When another plugin (land claims, region protection, a "the End is locked"
+# plugin) blocks a placement that replaces a chest or shulker box, the box
+# comes back while a copy of it drops on the ground, sometimes with everything
+# that was inside. The known case is the last eye of ender in an end portal
+# frame with a container where the portal would appear. The plugin puts it
+# all back, so the container keeps its items and nothing is doubled. Staff get
+# a low-priority alert.
+prevent-reverted-placement-dupers: true
+
+# Close every open window when the server starts shutting down. On restart the
+# server saves player data and world data as two separate steps, and an item
+# moved in the gap between them is saved on one side but not the other, so it
+# exists twice on the next boot. No open window means no move to catch in that
+# gap. Costs nothing, since the server is stopping anyway.
+# Worth knowing: this covers a clean stop. A crash runs no plugin code at all,
+# and the balance checks are what catch it afterwards.
+prevent-shutdown-dupers: true
+
+
+# =============================================================================
+# [Detection] - How hard it looks
+# =============================================================================
+# A "balance check" counts what a player is carrying and compares it to what
+# the plugin recorded them earning. Carrying more than they earned is the
+# thing worth looking at.
+
+detection:
+  # How suspicious to be, from 1 (very relaxed) to 100 (very paranoid).
+  # 50 suits most servers. Higher means a smaller unexplained amount is enough
+  # to raise an alert.
+  sensitivity: 50
+
+# What to do when a hopper, dropper or crafter moves a watched item by itself,
+# with no player touching it. This is how duped goods get washed: drop them in
+# a chest, let a hopper carry them somewhere else, and pick them up looking
+# clean.
+#   LOG   - write the route into the item's history so you can follow it
+#           afterwards. Nobody is stopped and nothing changes for players.
+#   OFF   - ignore machine-moved items completely. Choose this if you run
+#           heavy redstone farms and want the smallest possible overhead.
+#   BLOCK - machines are not allowed to move watched items at all. Hoppers
+#           under a chest of diamond blocks simply will not pick them up.
+#           This changes how the game plays, so only pick it if you mean it.
+hopper_tracking: LOG
+
+# What happens when someone switches out of creative mode.
+# In creative, items can be made out of nothing, so the plugin cannot tell
+# which ones were earned. When the player switches back, whatever they carry
+# becomes their new record. The change shows up in /adp ledger history.
+#   RECORD - only write it into their history. Right for most servers, where
+#            staff build or help players in creative.
+#   ALERT  - also alert staff when someone switches back carrying more of a
+#            watched item than their record showed. It uses the item's alert
+#            threshold from materials.yml. For servers where only a few
+#            trusted people should use creative.
+leaving_creative_mode: RECORD
+
+# Stop double-click "gather every matching item" from working on watched
+# items. Off by default: players use it constantly and will notice it missing.
+# Only worth turning on if you would rather trade that convenience away.
+block_collect_to_cursor: false
+
+
+# =============================================================================
+# [Look] - Hiding the plugin from players
+# =============================================================================
+# The plugin marks watched items with the name of whoever owns them. That mark
+# lives on the server and never changes what a player can do with the item.
+
+# Strip the mark out of what gets sent to players' game clients, so a mod that
+# shows hidden item data cannot see it. Someone testing with two accounts then
+# cannot tell whether an item is marked or who it belongs to. The server keeps
+# the mark either way, so detection works exactly the same.
+# Turn this off only if you need to see the mark on a client while debugging.
+hide_tag_from_clients: true
+
+# Strict version of the above: strip every plugin's hidden item data on the
+# way to the client, not just this plugin's mark.
+# Off by default, because it also blanks data other things rely on. Texture
+# packs that change an item's look by its data, and client mods that sort or
+# price items, will see those items as plain.
+strip_all_custom_data: false
+
+# Names to leave alone in strict mode, so those plugins keep working on the
+# client. For example: ["itemsadder", "mmoitems"]
+# This plugin's own name can never be listed here, and is ignored if it is.
+strip_whitelist: []
+
+# What the mark is called inside item data. Renaming it means a leaked
+# screenshot or stream shows something meaningless like "data:o" instead of a
+# name that says which plugin put it there.
+# Renaming is safe. The old name is remembered automatically, items already
+# marked stay tracked, and they pick up the new name as they change hands.
+ownership:
+  namespace: "antidupepro"
+  key: "adp_owner"
+  # Older names to keep recognising. Filled in automatically when you rename.
+  # Only add entries by hand if you renamed more than once and skipped a version.
+  legacy_keys: []
+
+  # Sign every mark with a secret only this server knows. A mark made anywhere
+  # else, for example in creative mode, with an item editor or with a /give
+  # command, then does not match and is ignored, so nobody can fake a mark to
+  # frame another player. Staff get an alert when someone holds a faked one.
+  # The secret is made on first start in plugins/BetterAntiDupe/mark-signing.key.
+  # Keep that file private and never delete it. If this server shares items
+  # with others (for example through an inventory sync plugin), copy the file
+  # to each of them. Servers that share a Redis database share it by themselves.
+  signed_marks: true
+
+  # Marks made before signing was switched on carry no signature. One of:
+  #   AUTO   - trusted on a server that used this plugin before, and signed as
+  #            players carry those items. Not trusted on a brand-new server,
+  #            where an unsigned mark can only have been made by hand.
+  #   ACCEPT - always trusted, and signed as players carry them.
+  #   IGNORE - never trusted. Items with an old mark count as unmarked until
+  #            they change hands. Switch to this a few weeks after upgrading,
+  #            once /adp marks shows hardly any old marks being signed.
+  unsigned_marks: AUTO
+
+
+# =============================================================================
+# [Advanced] - Tuning, logging and statistics
+# =============================================================================
+# Sensible defaults. Most servers never touch this part.
+
+ledger:
+  # Witnesses. When a player mines, crafts or picks something up, the plugin
+  # notes who else was close enough to have seen it. Someone whose actions are
+  # never seen by anyone on a busy server is worth a second look, because that
+  # is the pattern duping produces.
+  witness:
+    # How far away someone can be and still count as having seen it, in blocks.
+    radius: 48
+
+    # How many people have to be nearby before an action counts as well seen.
+    verified_threshold: 3
+
+    # Whether to use this signal at all.
+    flag_suspicious_patterns: true
+
+    # How much of a player's activity has to be unseen before it counts as a
+    # pattern. 0.8 means more than four in five.
+    suspicious_solo_ratio: 0.8
+
+  # When to run a balance check on someone.
+  reconciliation:
+    # Shortest gap between two checks on the same player, in milliseconds
+    # (1000 = one second). Stops a busy player being counted over and over.
+    cooldown_ms: 5000
+
+    # Check a player when they pick something up off the ground.
+    on_pickup: true
+
+    # Check a player when they close a chest, shulker or other container.
+    # This is the one that catches players who never pick anything up and
+    # move everything through storage instead.
+    on_inventory_close: true
+
+    # Check a player a few seconds after they join (not on their very first
+    # join, which only records what they carry). Catches dupes where the
+    # server lost the player's last few minutes, for example after a crash or
+    # a lag machine, so they log back in holding items they had already put
+    # in a chest.
+    on_join: true
+
+    # Also check everyone online on a timer, in minutes, so nobody is missed
+    # however they play. Set to 0 to turn the timer off and rely only on the
+    # two triggers above.
+    interval_minutes: 15
+
+    # When the timer runs, wait this many milliseconds between players
+    # instead of checking everyone in the same instant. On a full server
+    # this spreads the work out so nobody notices it. 250 means four
+    # players a second.
+    stagger_ms: 250
+
+# How much the plugin writes to your console. One of:
+# CRITICAL, ERROR, WARNING, INFO, DEBUG. Each one also shows everything above
+# it, so WARNING also shows ERROR and CRITICAL.
+console_log_level: INFO
+
+# Anonymous usage statistics, sent through FastStats.
+#
+# Why: the plugin works quietly and the docs are thorough, so almost nobody
+# opens a ticket. That leaves no way to know which Minecraft versions are
+# actually running it, and knowing that is what makes it possible to fight
+# duplication exploits for those versions first instead of guessing. The
+# numbers are kept private and never published: while few servers run this,
+# public figures would tell dupers how likely any given server is to be
+# protected.
+#
+# Sent: which storage you use, which blocking toggles are on, how many items
+# you watch, your language, and whether shadow mode, auto-delete and tag
+# hiding are on. FastStats adds your server software, Minecraft version, Java
+# version and plugin version.
+#
+# Also sent, as plain running totals since the last report: how many times the
+# plugin flagged a suspect, grouped by the kind of check, how serious it was, and
+# which item; how many surplus items it removed, by item; and how many duper
+# contraptions it blocked, by type. These are just counts - they show whether the
+# plugin is catching anything and which items dupers go for, and they carry no
+# player, location or server detail.
+#
+# Never sent: addresses, server names, player names, item data, or anything
+# else that could identify you or a player.
+metrics:
+  # Set to false to send nothing at all.
+  enabled: true
+
+  # Send the error details when the plugin goes wrong, so bugs can be fixed
+  # without you having to report them by hand. Anything resembling a password,
+  # a token, an id or a home folder is removed before a report leaves your
+  # server. Set to false to keep error details to yourself.
+  error_reporting: true

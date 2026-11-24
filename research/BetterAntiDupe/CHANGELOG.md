@@ -1,0 +1,714 @@
+# Changelog
+
+All notable changes to BetterAntiDupe will be documented in this file.
+
+## [4.7.1] - 2026-10-17
+
+### Added
+- **Owner marks are signed.** Every mark is signed with a secret only your server knows, kept in `plugins/BetterAntiDupe/mark-signing.key`. A mark made by hand, in creative mode, with an item editor or a `/give` command, does not match, so it is ignored and can no longer be used to frame another player. Staff get an alert when someone holds an item with a faked mark. Servers sharing a Redis database share the secret by themselves; servers sharing items another way need the same file. New settings `ownership.signed_marks` and `ownership.unsigned_marks`.
+- **Marks from before the upgrade are signed as players carry them.** On a server that used the plugin before, older marks stay trusted and get signed during the normal checks. Once `/adp marks` shows hardly any being signed, set `ownership.unsigned_marks: IGNORE`. A brand-new server never trusts unsigned marks.
+- **`/adp marks`** shows the key in use, whether older marks are trusted, and how many were signed or found faked since the last start.
+- **`/adp fixstacks [player]`** fixes items that look the same but will not stack, by giving that player's mark to their unmarked items and updating their older marks. Items marked to someone else are left alone.
+- **API level 2.** `ownership().state(stack)` tells signed, older, faked and other-server marks apart, and alerts have a new kind, `FORGED_MARK`.
+
+### Fixed
+- **Shift-click crafting gave items that would not stack.** Only the first item of a shift-click craft got the crafter's mark, so crafting a stack of diamonds into blocks gave one marked block and the rest unmarked, and the two would not stack. Every crafted item is now marked.
+
+## [4.7.0] - 2026-10-13
+
+### Added
+- **An API for other plugins.** Shops, crates, kits and reward plugins can now tell Better Anti-Dupe when they hand out or take away items, strip the owner mark from template copies, read a player's record, and listen to alerts, protections and automatic removal through normal Bukkit events. It works on Spigot, Paper and Folia from 1.21 up. See "Use it from your plugin" in the docs. The old `recordGrant` hook still works.
+- **Stops hidden menu dupes.** Most dupes found in other plugins' menus (backpacks, ender chest plugins, shulker preview plugins, storage menus) start with a cheat client hiding the menu on the player's screen without telling the server it closed. A normal game always closes a menu before the player can mine, build, hit, drop an item, switch hotbar slot or type a command, so doing any of those with a menu still open is now stopped, the menu is closed, and staff get an alert. Normal players are not affected. Works on Paper, Folia and Spigot. New setting `prevent-hidden-menu-dupers`, on by default.
+- **Stops the end portal chest dupe.** When the last eye of ender goes into a portal frame with a chest or shulker box where the portal appears, and a land claim, region or "the End is locked" plugin blocks it, the container came back while a copy of it dropped on the ground. On Paper a chest's items dropped too while the chest stayed full, and a shulker box dropped with everything still inside it, so the whole box was doubled. On Spigot the container came back empty next to the copy. The plugin now puts it all back: the container keeps its items and nothing extra is left on the ground. This is an open Paper bug on 26.3. New setting `prevent-reverted-placement-dupers`, on by default.
+- **Players are checked a few seconds after they join.** This catches players who come back holding items the server should not have handed back, for example after a crash or a lag machine stopped their data from saving while the items they put away stayed in a chest. New setting `ledger.reconciliation.on_join`, on by default.
+- **The console lists Paper's duping settings at startup.** If any duping glitch is switched back on in `config/paper-global.yml` (TNT, rail and carpet machines, sand through end portals, tripwire hooks), the console says so and which of them the plugin still blocks.
+
+### Fixed
+- **The owner mark is now hidden on Spigot 1.21.** Spigot before 26.1 uses different internal names, so the part that hides the mark from players' games switched itself off at startup there. It now works on Paper, Folia and Spigot alike, checked by watching what players' games actually receive.
+- **A Spigot error on lecterns is guarded.** Spigot can report an empty hand differently from Paper, which could make putting a book on a lectern throw an error there.
+- **Memory use on servers that run for weeks.** The plugin kept every player's balances in memory after they left. They are now released five minutes after the player logs off.
+
+### Security
+- **Alerts can no longer ping everyone in Discord.** Alert messages are sent with mentions switched off, so nothing in them can ping @everyone, @here or a role.
+- **The confirm command uses the player's real name.** `on_confirm_command` now fills in the name the server has on record instead of the text typed after `/adp ledger confirm`.
+
+### Changed
+- **Built against Paper 26.3 stable.** Paper now marks 26.3 as stable, and the 26.3 download is built against it. Nothing else changes.
+- **No items are taken away right after a crash.** For 30 minutes after a start that follows a crash, "Has X but ledger shows Y" alerts now also say the crash may be the cause, and the plugin does not remove items for any alert that carries that note, even with `auto_delete_dupes` on. A crash can hand a player back their own items, and those should not be deleted.
+
+## [4.5.3] - 2026-10-12
+
+### Added
+- **`/adp ledger accept <player> <item> [amount]`.** Records items a player got legitimately (a reward or a shop) so they stop being flagged, and clears the alert.
+- **A hook for other plugins.** `BetterAntiDupe.recordGrant(player, material, amount, source)` declares items handed out outside normal play; Better End Cities uses it for elytras bought from frames.
+
+### Changed
+- **Smaller download.** The plugin carried its own copy of the database driver and the networking library, but every Paper and Spigot server already includes both, and the server's copy is always the one used. They are no longer included, so the file is about 7 MB smaller. Nothing changes in how the plugin works.
+
+## [4.5.2] - 2026-09-20
+
+### Fixed
+- **Rail dupers no longer work when TNT dupers are allowed.** With `prevent-tnt-dupers` off, detector rails were skipped by the rail check entirely, so anyone could dupe detector rails on purpose. Now the piston is left alone so TNT duper world eaters keep running, and the duplicated rail or carpet is removed the moment it pops out instead. TNT duper world eaters are unaffected, they just stop handing out free rails. Every kind of rail is covered, including detector rails.
+
+## [4.5.1] - 2026-09-19
+
+### Changed
+- **Console messages are written in plain English.** The warnings about hiding the owner mark, about the ownership settings in config.yml, and about an item the server no longer has used wording aimed at programmers. They now say what happened, whether anything is affected, and what to do about it.
+- **Built against the newest Minecraft 26.3 build.** No behaviour changes; the 26.3 download now matches the current Paper release.
+
+### Fixed
+- **Starts on hosts where the temporary folder cannot be used.** The database needs to unpack a small helper file before it can run, and it used the server's temporary folder to do it. Many hosts do not allow that folder to be used this way, or keep it full, and the plugin then stopped with a confusing "no native library found" message. It now unpacks into its own folder instead.
+- **Starts on network storage and when the disk is full.** The plugin asks the database to use a faster way of saving, which does not work when the plugin folder lives on network storage, and fails when the disk is full. That stopped the whole plugin. It now says so in the console and switches to the slower, safe way instead. Nothing is lost and no setting needs changing.
+- **The last few item movements before a stop are no longer lost.** While the server shuts down, anything the plugin still had to finish was refused, because the server will not accept new work from a plugin that is closing. Those final records now go through, and staff alerts raised at that moment are delivered instead of disappearing.
+- **Webhook addresses are kept out of the console.** If a Discord, Slack, Telegram or custom webhook address was wrong, the failure message repeated the whole address, which includes the secret part that lets anyone post to your channel. Console logs get pasted into support channels, so the address is now left out.
+- **Error reports no longer include the folder your server lives in.** When a file or database problem was reported, the message quoted the full path, which names your hosting account. Reports now show it as `plugins/BetterAntiDupe` instead. Your own console keeps the full path, because that is where it is useful.
+- **Problems that happen while the server is running are now reported.** Error reporting only ever covered startup, so a database that stopped working later, a failed history check or a failed clean-up pass was never sent in and only appeared in your console. Repeated failures are grouped so one broken thing cannot flood anything.
+- **Ledger commands now answer when the records cannot be read.** If the database was unreachable, `/adp ledger` commands replied with nothing at all and staff had no way to tell the command apart from a broken one. They now say so and point at the console.
+- **Clearer console messages when the plugin cannot start or cannot track items.** A read-only plugin folder, a full disk or an unreachable Redis database used to produce only a technical error. The console now names the folder or the address and says what to check. If item tracking cannot start, the console now also says that the protections against duping machines keep running.
+
+## [4.5.0] - 2026-09-17
+
+### Fixed
+- **TNT dupers that use a detector rail work when TNT dupers are allowed.** With `prevent-tnt-dupers` off but rail protection on, TNT dupers powered by a detector rail and minecart could not move. Detector rails are now left out of the rail check whenever TNT dupers are allowed. Other rails and all carpets stay protected.
+
+## [4.4.0] - 2026-09-16
+
+### Added
+- **Minecraft 26.3 support, as its own download.** There are now three jars: the plain one for 1.21.x, `-mc26` for 26.0 to 26.2, and the new `-mc263` for 26.3. A 26.2 or older server refuses the 26.3 jar with a clear message, and each jar only offers updates meant for its own Minecraft version. If a 26.3 server runs the `-mc26` jar, the console asks you to switch.
+- **Hiding the ownership tag from players now works on Minecraft 26.3.** 26.3 servers changed an item conversion the feature relies on, so it switched itself off at startup with an "unsupported server build" warning.
+- **`leaving_creative_mode`** decides what happens when someone switches out of creative mode. Whatever they carry becomes their new record, including what is packed inside shulker boxes and bundles, and the change is written into their history as `LEFT_CREATIVE`. `RECORD` (the default) only writes it down. `ALERT` also alerts staff when someone switches back carrying more of an item than their record showed, once it reaches that item's alert threshold. It never removes anything and adds no suspicion. `/adp reload` applies it.
+
+### Fixed
+- **Works on Spigot again.** Since 4.3.0 the plugin threw an error on almost every item pickup, inventory click and drop on Spigot servers, because the check for a Bucket of Sulfur Cube needed a part of Paper that Spigot does not have. Item tracking on Spigot was effectively off. On Spigot, feeding a block to a live sulfur cube is still not recorded, because only Paper reports that.
+- **Crafting a tracked item into something untracked now takes it off the record.** Turning a Block of Diamond back into diamonds, or using a tracked item at an anvil, smithing table or stonecutter to make an untracked item, left the record too high by that amount, which is room to dupe.
+- **Taking items out of a furnace is counted once.** A furnace take was recorded twice, which left the record too high by the amount taken.
+- **Putting a book on a lectern is now recorded.** Only taking a book off was, so a book passed between two players this way was counted twice.
+- **Update checks now reach Modrinth.** The updater asked Modrinth for a project that does not exist, so every check quietly fell back to GitHub.
+- **Feeding a block to a live sulfur cube is now recorded.** A player who fed a cube a tracked block, like a Block of Diamond, was never charged for it. Getting it back by shearing or killing the cube then counted as new, which left room to dupe. The block now counts as stored away when it goes in, and comes back to whoever gets it out. Needs Minecraft 26.2 or newer on Paper.
+- **Dragging items into a chest is now recorded.** The server shortens the held stack before it tells plugins about a drag. The plugin counted from the already shortened stack, so it saw nothing move. Items spread into a chest by dragging were never taken off the player's record. Taking them back raised "came out of storage beyond what was ever put in", and the record stayed too high by that amount. A drag split between a chest and the player's own inventory could also count as taking items out. Copies made in creative by dragging with the middle mouse button now count as stored too.
+- **Creative mode no longer causes false alerts or leaves room to dupe.** Nothing a player did in creative was recorded. Items they stored, dropped or placed there never counted as put away, so taking them out later, even in survival, raised "came out of storage beyond what was ever put in". Their record also stayed too high by that amount, which is room to dupe into. A shulker box copied with middle-click in creative raised "Has 12 but ledger shows 0" on the next timed check. Players in creative are now recorded like everyone else, apart from copying a stack with middle-click. Balance checks wait while someone is in creative, since anything can be made there.
+
+## [4.3.0] - 2026-09-15
+
+> **Note:** four things this plugin's documentation described were never
+> actually implemented. They are now. If you had `auto_delete_dupes: true` set,
+> the plugin was **not** removing anything. Read the first entry below before
+> upgrading, because it will start doing so once you also set
+> `shadow_mode: false`.
+
+### Added
+- **Duped items can now actually be removed.** `auto_delete_dupes` and `shadow_mode` were read at startup for a log line and nothing else; no code path ever removed an item. Both switches now work, and they have to agree: `shadow_mode: true` (still the default) is a hard veto, so removal needs `shadow_mode: false` **and** `auto_delete_dupes: true`. The default behaviour is unchanged: alert only. When it does act, it takes back only the surplus, only from items carrying the plugin's own ownership tag, and only at `enforcement.min_severity` (default `HIGH`) and above. New `enforcement` section: `min_severity`, `max_items_per_action` (a cap on one removal, 0 for no limit) and `notify_player`. Items stored inside a shulker box or bundle are counted but never unpacked and deleted; the console reports what it could not reach so you can handle it yourself. Every removal is written to the player's ledger history. The startup line now says which setting is in charge, and warns when shadow mode is quietly overriding auto-delete.
+- **Automated transfers are tracked.** Hoppers, droppers and crafters moving items on their own were completely unmonitored despite being listed as covered. New `hopper_tracking` setting: `LOG` (default) writes the route into the item's history so goods washed through a chest network can be traced, `BLOCK` stops machines moving tracked items at all, and `OFF` skips it entirely; with `OFF` no listener is registered, so redstone-heavy servers pay nothing. Repeated routes are recorded once a minute rather than on every hopper tick.
+- **Double-click gather can now actually be blocked.** `block_collect_to_cursor` was documented in config.yml and the user guide but, like the three settings above, nothing read it. It works now, still off by default because players use that gesture constantly and would notice it missing.
+- **Balance checks now run on a timer and on container close.** A check only ever ran when a player picked something up off the ground, so anyone who moved everything through chests was never checked at all, which is every container-mediated dupe. Everyone online is now swept every `ledger.reconciliation.interval_minutes` (default 15, set 0 to disable), spread out by `stagger_ms` so a full server does not do all the work in one tick, and a check also runs when a player closes a container.
+- **Dupes made inside chests are now caught.** Some exploits copy items inside a chest, a donkey or an item frame rather than into a player's inventory. Whoever takes the copies out is simply credited, so no player's record ever looked wrong. The plugin now keeps a running count, per player and item, of that player's tagged items sitting outside every inventory: stored in containers, frames and pots, or lying on the ground. It goes up when their items are put away, dropped or lost on death, and down when anyone takes or picks them up. That count can never honestly drop below zero, so when more of a player's items come out of storage than ever went in, admins get an alert naming whose items they were, who took them, and where. It uses each item's alert threshold from `materials.yml`, adds no suspicion to the taker, who may be innocent, and never removes anything. On an existing server the count is filled once from the record history at startup, erring toward missing an old dupe rather than raising a false alarm, and it is shared across servers on Redis. Loot copied before any player ever held it carries no owner and stays invisible. Breaking a block no longer claims items that were stored inside it, such as a decorated pot's contents: they keep their owner, so a dupe inside a pot is caught too.
+- **`/adp test alert`** sends a clearly marked test alert to your chat and to every Discord, Telegram, Slack or generic webhook that is turned on, then reports per channel whether it was delivered or why it failed. It skips the severity filter and the repeat limit, is never counted in the statistics, and never removes anything. Needs `antidupe.admin`.
+- **`/adp reload`** applies `messages.yml`, the language, the notification channels, `shadow_mode`, `auto_delete_dupes`, the `enforcement` section and `console_log_level` without a restart. Settings that still need one are compared before and after, and the command names any you changed, as well as `materials.yml`. Needs `antidupe.admin`.
+- **Alerts have [History] and [Stash] buttons** for staff with `antidupe.ledger`, running those commands for the flagged player in one click. Alerts-only staff keep the plain line.
+- **Alerts caused by a crash say so.** The plugin keeps a `server-running` file that a clean stop removes. If it is still there at startup, "picked up twice" alerts in the following 30 minutes carry a note that the server did not shut down cleanly, since a rollback after a crash produces that alert by itself. The generic webhook body gains an `afterUncleanShutdown` field.
+- **`/adp ledger remove <player>`** takes back what an online player carries beyond their record, on an admin's say-so. The first run lists the surplus with a [Remove] button; confirming counts again and removes only what is extra at that moment, only from items carrying the plugin's tag, and never from inside a shulker box or bundle. It works in shadow mode, because the decision is the admin's, and every removal is written to the player's history. Needs `antidupe.ledger`.
+- **The metrics now say what the plugin actually caught.** Alongside the config snapshot it already sent, each report carries plain running totals since the last one: how many times a suspect was flagged, split by the kind of check, how serious it was, and which item; how many surplus items enforcement removed, by item; and how many duper contraptions the block-level protection stopped, by type (rail, carpet, TNT, gravity, phantom window). These are counts and nothing else, with no player, location or server attached - enough to tell whether the plugin is earning its place and which items dupers go for, not enough to identify a server. The counters clear only after a report the server accepted, so a failed send never loses a period's numbers.
+
+### Fixed
+- **The hash chain now covers the audit trail, not just the transaction.** Witnesses, trust level, container location and notes sat outside the hash, so any of them could be rewritten in the database without breaking anything. Worse, the marker that tells verification "start checking from here" lived in that unhashed notes field, so editing one field on one row retired a player's entire history from verification without recomputing a thing. The marker is now its own `CHAIN_RESET` action, which the hash has always covered. Entries carry a hash version and are verified under the rules they were written with, so upgrading does not invalidate an existing database; the SQLite table gains a `hash_version` column automatically on first start. Markers written by earlier releases are still honoured, but only on those older entries.
+- **The per-player append lock did not actually lock.** It used Kotlin's `getOrPut`, which on a `ConcurrentHashMap` is a plain get-then-put, so two appends for the same player at the same instant could each take a different lock, read the same chain tip and write two entries sharing one `prevHash`. That forked the player's chain permanently and later read as tampering. Fixed here and in six other places using the same pattern for suspicion scores, witness history, suspect profiles and drop authorizations.
+- **Shutdown no longer throws away the last few writes.** Storage was closed before the coroutines writing to it were finished, so every in-flight ledger append hit a closed connection in exactly the window the restart-duper protection exists to cover. Shutdown now stops the background loops, waits up to five seconds for outstanding writes, and only then closes. If that wait runs out it says so in the console rather than failing silently.
+- **Crafting and workstations no longer mint ledger headroom.** Both credited their output and never debited what they consumed, so diamonds to a block and back, dyeing a shulker between colours, or repeatedly renaming an item on an anvil each added spare balance every cycle while the inventory stayed the same. Since reconciliation only ever flags a surplus, that was free room to dupe into. Craft ingredients are now debited per occupied recipe slot per craft; station inputs are measured by what actually leaves the input slots rather than guessed from the recipe.
+- **The chain migration ran again on every startup for busy players.** It looked for its own marker in each player's newest 200 entries; once a player wrote 200 more, the marker fell out of that window and a fresh one was appended each boot, which shortened the range verification actually covered. It is now guarded by a file marker and runs once.
+- `ledger.reconciliation.on_pickup`, `ledger.reconciliation.on_inventory_close`, `ledger.witness.flag_suspicious_patterns` and `redis.timeout` were present in config.yml but never read, so changing them did nothing. All four now work. `storage.sqlite_file` was dead too and has been removed rather than wired, because nothing was ever stored there. Note that `on_inventory_close` ships as `true` for new installs; an existing config.yml already has it set to `false` and will keep that value until you change it.
+- The config reference in the user guide still documented a `ledger.enabled` toggle that was removed in 3.0.0. That section was a hand-maintained copy of config.yml and had drifted; it is now a map of the file's chapters plus a table of the settings people actually ask about, so there is only one copy to keep right.
+- `/adp update` had no permission check of its own, delegating the decision to PluginPulse while the tab completer checked `antidupe.admin` locally. If those ever disagreed, `/adp update download` was a public command.
+- Tab completion offered online players only, for commands built around offline ones. Reading a name off `/adp ledger suspects` and looking that player up is the workflow the command exists for, and that name usually belongs to someone who has logged off. Suspect names now complete too.
+- **Busy chests no longer raise false dupe alerts.** Items that move show up in a player's inventory a moment before the plugin writes down that they moved. A balance check landing in that moment, or a move happening while a check was counting, read an honest player as carrying extras. On a test with four players shuffling full stacks in and out of chests, that produced dozens of false alerts in a few minutes. A balance check now only counts when nothing that player moved is still being written down and nothing moved while it counted; otherwise it tries again a moment later. If a player keeps moving items for 10 seconds straight, that check is skipped and the next one catches up.
+- **A very fast rejoin can no longer count a new player's inventory twice.** The first time a player joins, the plugin writes down what they are carrying as their starting point. It checked whether that had been done, then counted the inventory, then wrote it down, so two joins close together could both find nothing yet and both add the full inventory. That left the player with room to dupe into. Only one starting point can now be in progress per player, and the "already done" mark is written before the inventory is counted. On a network where several servers share Redis, a server now has to claim a brand-new player in Redis before writing their starting point, so a player who arrives on two servers at almost the same moment is still counted once.
+- **Small dupes can no longer be washed through a chest.** When a player's record for an item dropped below zero, the plugin assumed it had missed a legitimate gain and quietly accepted what they held. A duper could use that: dupe a few items, store everything in a chest so the record went below zero and was forgiven, then take it all back. Items from shops and `/give` carry no ownership tag, so they never show up as extra first; extra tagged items that are then written off this way are now remembered for a day, and once they add up to the item's alert threshold, admins get an alert: "carried without explanation, then stored away and written off". Shop and `/give` items are still accepted silently.
+- **A false alarm no longer lowers a player's alert bar forever.** Every alert added to a player's suspicion permanently, so a few false alarms left an honest player alerting on far smaller amounts for good. That suspicion now halves after each full day without a new alert. A duper confirmed with `/adp ledger confirm` stays pinned high until cleared.
+- **No more false "packet not on the strip list" warnings.** The check that warns when a server update starts sending item data the plugin does not recognise went by packet names alone, so it also fired for packets that only carry ids and slot numbers, such as picking up an item or switching the held slot. It now looks at what the packet actually contains and only warns when item data is really in it. Villager trade offers are not warned about unless `strip_all_custom_data` is on, because what a villager offers is never tagged by this plugin. The warning itself is reworded to say what it means for you: the hidden owner mark may be visible to players, while detection keeps working.
+- **Items inside shulker boxes and bundles now change hands properly.** When a player picked up or took a shulker box or bundle, they were credited for what was inside, but those items kept the previous owner's tag, so balance checks never counted them as the new holder's. Handing someone a full shulker box gave them room to dupe into. The contents are now retagged to whoever receives them, at any depth. Bundles are also handled on their own now: they are not a tracked item, so picking one up or dropping it used to ignore what was inside entirely, and a dropped bundle of diamonds was never taken off the dropper's record. The block a sulfur cube has swallowed, carried in a Bucket of Sulfur Cube, is handled the same way on servers that have the sulfur cube.
+- **Picking something up no longer raises a false dupe alert.** The balance check that runs on a pickup started before the pickup itself was written down, so it saw the item in the player's inventory but not the record of them getting it. Any pickup larger than an item's alert threshold alerted admins, for example "Has 42 but ledger shows 10" right after picking up 32. The check now waits until the pickup, and anything inside a picked-up shulker box or bundle, has been recorded.
+- **Chest transfers are credited to the right player, and the items follow them.** A container click was measured by counting the container before and a tick after, and the whole difference went to whoever clicked. Anything else that changed the container in that tick counted as theirs: a second player on the same chest, a hopper draining it, a copper golem emptying a copper chest. Two players could put in and take out in the same tick and leave the one who put items in with credit for items they no longer had. Transfers are now measured on the clicking player's own inventory and cursor, which nothing else can change; pickups and drops in the same tick are subtracted out, and nobody can be credited more than the container held. Taken items, and stacks swapped in from a container, now carry the taker's tag too. Before, a chest trade left the receiver credited for items still tagged to the giver, which balance checks ignored, so every chest handover gave the receiver silent room to dupe into. Shelves retag on take the same way.
+
+### Changed
+- **config.yml is reorganised into chapters, ordered by who needs them.** It opens with a short menu of the routes through the file, so a reader can find the two lines they came for instead of reading the whole thing. Roughly a third of the settings previously sat outside any section, in the order they happened to be added: the three switches deciding what happens to a caught duper were unlabelled one-liners two thirds of the way down, below a full Redis chapter that does nothing unless you use Redis. Developer wording is gone with it, including "isotope tags", "v2 ledger", "PersistentDataContainer", "client-bound packets", the undefined abbreviation "ADP", and "reconciliation", which the file used eight times without ever saying what it meant. Same in materials.yml, where "TMAR" and "Theoretical Max Acquisition Rate" are now a plain sentence about how many of something a player could honestly gain in a minute.
+- **Two settings moved to where you would look for them, and old positions still work.** The confirm command is `on_confirm_command` at the top level rather than buried under `detection`, and the Redis database number is `redis.database` rather than `ledger.redis_database`. Existing files keep working untouched: where the old key is present it still wins, deliberately, because older configs carry both a live `ledger.redis_database` and a `redis.database` that nothing ever read, and preferring the new name would have silently moved those servers to a different Redis database.
+- **Dependencies refreshed.** kotlinx-coroutines 1.8.0 to 1.11.0, sqlite-jdbc 3.45.3.0 to 3.53.4.0, org.json 20231013 to 20260814. sqlite-jdbc 3.53 adds a Linux RISC-V binary, which is kept rather than excluded: those hosts are rare but a missing native means the server cannot start at all.
+- **Shaded libraries are relocated.** Only PluginPulse and FastStats were. org.json now is too, which matters because plenty of plugins bundle their own copy and whichever loads first decides for everybody, and the ledger serializes every entry through it. Lettuce and Reactor are relocated for the same reason. Netty is deliberately left alone, since the packet tag stripper has to work with the types the server itself loaded.
+- The development `runServer` task now asks for a 1 GB heap instead of whatever the default is, so a smoke test does not fail to start on a machine that is also running a game and a real server.
+- First unit tests. The ledger's hashing rules are pure functions, so `./gradlew test` now checks them without standing a server up: that edits to metadata and witnesses break the hash, that pre-4.3.0 entries still verify, and that a forged reset marker in the notes field is ignored on current entries.
+- `gradle.properties` now caps the Gradle and Kotlin compile daemons instead of letting them take their defaults, and lets them idle out after 30 minutes.
+- **Error reporting is now on by default** (`metrics.error_reporting`, previously off). When the plugin hits an error it sends the stack trace, redacted first: UUIDs, home directories and anything resembling a password or token are stripped before it leaves the server. Set `metrics.error_reporting: false` to keep error details to yourself. The plugin also now hands the reporter the exceptions it catches and recovers from during startup, which the underlying SDK would otherwise never see.
+
+## [4.2.0] - 2026-07-20
+
+> **Note:** this release adds anonymous (private) metrics, on by default - they
+> are **not** publicly viewable, for your server's security. Earlier descriptions
+> said the plugin had no telemetry; that is no longer accurate. Set
+> `metrics.enabled: false` in config.yml to send nothing at all.
+
+### Added
+- **Anonymous usage metrics.** BetterAntiDupe now reports anonymous statistics through FastStats. The plugin works quietly and the docs are thorough, so almost nobody opens a ticket - which leaves no way to know which Minecraft versions are actually running it. Knowing that is what makes it possible to fight duplication exploits for those versions first, instead of guessing. The statistics are kept private, never published on a public page: while the install base is small, public numbers would tell dupers how likely any given server is to be protected. Sent: storage backend, which prevention toggles are on, tracked-material count, language, and whether shadow mode, auto-delete and tag hiding are enabled - plus the server software, Minecraft version, Java version and plugin version FastStats collects itself. Never sent: IP addresses, server names, player names or UUIDs, item data, or ledger contents. Set `metrics.enabled: false` in config.yml to send nothing.
+- **Opt-in error reporting.** `metrics.error_reporting` (default **false**) sends stack traces when the plugin throws, so bugs can be fixed without waiting for a manual report. Off by default because a stack trace can carry incidental detail that plain counters can't; UUIDs, home directories and anything resembling a password or token are stripped before a report leaves the server.
+
+### Changed
+- PluginPulse updated to 0.8.0.
+
+## [4.1.0] - 2026-07-19
+
+### Added
+- **Restart dupers are now blocked.** New `prevent-shutdown-dupers` toggle (on by default) closes every open inventory when the server begins shutting down. The shutdown sequence writes player data and world data as separate steps; a stack moved between an inventory and a container in the window between them is saved on one side but not the other, so it exists twice on the next boot - no contraption needed, just a well-timed click during a restart. Closing all views before the writes leaves no in-flight transfer to race. Plugin shutdown runs ahead of both writes on every Paper version checked (1.21.1 through 26.2), and players are still connected at that point, so the close lands properly. Note this covers a clean stop (`/stop`, restart plugins) - a crash or `kill -9` runs no plugin code, and ledger reconciliation remains the backstop there (a restart dupe leaves two items carrying the same ownership UUID).
+
+## [4.0.2] - 2026-07-15
+
+### Fixed
+- **Carpet and rail dupers using a slime block to pull the block out sideways are now blocked.** Duper prevention only checked for a rail or carpet resting directly on *top* of a block the piston moved. A newer contraption - an observer, a slime-block column, and a sticky piston with the carpet beside/under the top slime block - dislodges the carpet without it ever sitting on a pushed block, so the piston fired and the dupe went through even with `prevent-carpet-dupers` on. A moving slime or honey block can now dislodge a rail or carpet from any of its side or bottom faces, not just the top, closing the variant. Both `prevent-rail-dupers` and `prevent-carpet-dupers` are honored as before. Only affected block-duper prevention added in 4.0.0.
+
+## [4.0.1] - 2026-07-13
+
+### Fixed
+- **Recoloring a filled shulker box in a crafting table no longer empties it.** With every shulker color now tracked (4.0.0), the craft handler began overwriting the recolor recipe's real output - which vanilla fills with the input shulker's contents - with a clone of the generic empty recipe result, deleting the contents. The handler now tags the actual crafted item, so contents are preserved. Only affected 4.0.0.
+
+## [4.0.0] - 2026-07-13
+### Changed
+- **The plugin is now Better Anti Dupe.** Same free plugin, new name - part of the ESMP rebrand. The project now lives at https://github.com/ESMP-FUN/BetterAntiDupe.
+- Main command is `/antidupe` (aliases `/adp`, `/betterantidupe`). Permissions are unchanged (`antidupe.*`).
+- Internal packages moved to `com.esmpfun.antidupe`.
+
+### Added
+- **Duper prevention.** The classic block-duplication contraptions are now blocked at the mechanic level, before any item exists to track. Five new config toggles, all on by default:
+  - `prevent-rail-dupers` / `prevent-carpet-dupers` - cancels piston movement that would dislodge a rail or carpet mid-move (including the carpet-on-piston-arm variant), the trick every rail/carpet duper relies on.
+  - `prevent-tnt-dupers` - pistons can no longer move TNT blocks. Turn off if your server allows TNT-duper world eaters.
+  - `prevent-gravity-dupers` - falling blocks (sand, gravel, concrete powder, dragon egg...) can no longer travel through portals (the end-portal sand duper family). Pistons pushing sand are unaffected.
+  - `prevent-container-desync-dupers` - open container GUIs are force-closed when the container goes away (shulker/chest broken or blown up, donkey/chest-boat chunk unloading), killing the "phantom GUI" dupes that would otherwise launder items through legitimate-looking ledger entries.
+- **Death drops are now debited from the ledger.** Previously, dying and re-collecting your items credited them a second time, permanently inflating the ledger - headroom a duper could farm by dying on purpose. Drops (including shulker contents) are debited at death and credited back on pickup, by whoever collects them.
+- Automatic data-folder migration from `plugins/AntiDupePro/` on first start (old folder kept as backup).
+
+### Fixed
+- **All 17 shulker box colors are tracked.** The dyed variants were silently untracked despite the materials.yml comment claiming otherwise - only the undyed (purple) `SHULKER_BOX` was watched. Every color is now always tracked, as documented.
+- **Breaking your own filled shulker box no longer fires a false CRITICAL alert.** The ledger treated items placed into a shulker as disposed, but the inventory scan counts items inside a held shulker as yours - so break-and-carry read as a huge surplus. Shulker/bundle contents now move on the ledger together with the container item, across pickups, drops, block placement, chest transfers, item frames, and decorated pots. Handing a friend a filled shulker via a chest also credits them the contents correctly.
+- Ownership tags applied on pickup are now written back to the item entity explicitly, closing a potential gap on API versions where the stack getter returns a copy.
+
+## [3.5.1] - 2026-07-08
+
+Load fix for Paper 1.21.11.
+
+### Fixed
+- **Plugin failed to load on Paper 1.21.11.** The shaded jar carried duplicate `META-INF` resources (Netty's `io.netty.versions.properties` and a BlockHound service file, both pulled in transitively by lettuce-core), which Paper's plugin remapper rejects with a "Duplicate entries detected" error. These redundant entries are now dropped from the jar - the server provides its own Netty at runtime - so the plugin loads normally again. Thanks to imSpartann for the report (#1).
+
+## [3.5.0] - 2026-07-05
+
+Includes auto-updating for when the next update releases.
+
+### Added
+- **Built-in update checking.** BetterAntiDupe now checks Modrinth (with GitHub Releases as a fallback) for new versions and notifies admins. The new `/adp update` command adds `check`, `download` (fetch a new build, verify its checksum, back up the current jar, and stage it in the server's update folder to install on the next restart), `restore` (roll back), and `status`. Off by default beyond notifications - set `update.mode` to `download` or `auto-stage` in config.yml to enable installs. Works on Spigot too (notices fall back to plain text where clickable messages aren't available). Servers on the `-mc26` build follow the mc26 release line automatically.
+
+## [3.4.2] - 2026-07-02
+
+Rename the tag, and optionally send clients nothing at all.
+
+### Added
+- **Rename the ownership tag.** New `ownership.namespace` / `ownership.key`
+  options change what the tag is called in item data - a leaked screenshot or
+  stream frame then shows something bland like `data:o` instead of
+  `antidupepro:adp_owner`, revealing nothing about which plugin wrote it.
+  Renaming is safe: the previous name is remembered automatically (marker file
+  plus `ownership.legacy_keys`), items tagged under the old name stay fully
+  tracked, and they re-stamp onto the new name as they change hands. The
+  client-side concealment hides old and new names alike during the transition.
+- **Strict strip mode.** `strip_all_custom_data: true` strips *every* plugin's
+  custom item data from packets sent to clients, not just BetterAntiDupe's tag -
+  anything reaching the client is clean. Off by default because CIT resource
+  packs and client mods that read item data (sorting helpers, price or tooltip
+  overlays) will see stripped items as blank. Pair it with `strip_whitelist`
+  to preserve the namespaces your pack or mods need - BetterAntiDupe's own
+  namespace is never allowed on the whitelist and is ignored if listed.
+
+## [3.4.1] - 2026-06-30
+
+Let trusted staff peek at the tag.
+
+### Added
+- **`antidupe.tag.view` permission.** With `hide_tag_from_clients` on, the
+  ownership tag is hidden from every player's client. Grant this node to an
+  admin or group and their own client keeps the tag visible - handy for
+  eyeballing it through an NBT-viewer mod without running `/data get`. Off by
+  default, so concealment stays total until you grant it. Applies on next login.
+  (Admins could already read the tag any time with `/data get`, which reads the
+  untouched server-side data - this is purely about client-side visibility.)
+
+## [3.4.0] - 2026-06-30
+
+Hide the tag, sharpen the witnesses, and split the keys.
+
+### Added
+- **Hide the ownership tag from players.** New `hide_tag_from_clients` option
+  (on by default). BetterAntiDupe strips its own tag from items in the
+  packets sent to players, so anyone poking at item NBT with a client mod just
+  sees nothing - they can't tell a tracked item from an untracked one, and the
+  old "swap an item between two accounts to see the tag flip" trick stops
+  working. The tag is untouched server-side, so detection is exactly as before.
+  Only BetterAntiDupe's own data is hidden; other plugins' data and resource-pack
+  item models are left alone.
+- **`antidupe.witness.exempt` permission.** Anyone with this node is never
+  counted as a nearby witness - handy for staff who patrol invisibly and
+  shouldn't accidentally vouch for a player's actions.
+
+### Changed
+- **Vanished staff no longer count as witnesses.** Proof of Witness now ignores
+  vanished players (via the standard `vanished` flag that EssentialsX,
+  SuperVanish and PremiumVanish all set). Previously an invisible admin standing
+  nearby could quietly raise a duper's trust and hide the solo-farming pattern.
+- **Alerts and ledger commands are now separate permissions.** Give a moderator
+  `antidupe.alerts` to receive dupe alerts without command access, or
+  `antidupe.ledger` for the `/adp ledger` commands. `antidupe.admin` still grants
+  both, so existing setups are unchanged.
+
+### Downloads
+- **Two builds.** `BetterAntiDupe-3.4.0.jar` is for Minecraft 1.21.x (Java 21);
+  `BetterAntiDupe-3.4.0-mc26.jar` is for 26.x (Java 25). Grab the one that matches
+  your server - 1.21.x servers can't load the 26.x build.
+
+## [3.3.5] - 2026-06-13
+
+Speak your language - and a smoother stash teleport.
+
+### Added
+- **5 built-in translations.** Set `language:` in config.yml to switch all
+  in-game messages at once:
+  - `pt_BR` Português do Brasil
+  - `es` Español
+  - `de` Deutsch
+  - `ru` Русский
+  - `pl` Polski
+- Your own edits in `messages.yml` still win over the chosen translation,
+  and anything a translation misses falls back to English. Found a wonky
+  phrase? Corrections are very welcome on GitHub.
+- **Updating?** Add one line to your config.yml: `language: pt_BR` (or
+  whichever you want). Without it the plugin stays English.
+
+### Fixed
+- **Stash teleport no longer shows a scary popup.** Newer Minecraft
+  versions ask "this command requires elevated permissions, are you
+  sure?" when a chat click runs a vanilla command like `/execute`.
+  Clicking stash coordinates now uses the plugin's own teleport
+  (`/adp ledger tp`), which goes through without any confirmation
+  dialog - and works the same in every world.
+
+## [3.3.4] - 2026-06-12
+
+Get dupe alerts outside the game!
+
+### Added
+- **Webhook notifications** - BetterAntiDupe can now push dupe alerts to:
+  - **Discord** (paste a channel webhook URL)
+  - **Telegram** (bot token + chat id)
+  - **Slack** (incoming webhook URL)
+  - **Anything else** via a generic JSON webhook (n8n, Zapier, your own bot)
+- All off by default. Set them up in the new `notifications` section of
+  `config.yml` - each option has step-by-step comments.
+- Built-in safety rails:
+  - `min_severity` (default HIGH) so small wobbles don't ping your phone.
+  - `rate_limit_seconds` (default 30) so an alert burst sends one message,
+    not hundreds.
+  - A broken webhook never affects the server - it just logs one warning
+    per minute until it works again.
+- Notifications use the same language as your `messages.yml`.
+
+### Good to know
+- **Updating from an older version?** Your existing `config.yml` is kept,
+  so the new `notifications` section won't appear automatically. Copy it
+  from the default config (shown in the user guide) into your file.
+- The ready-made translations move to a later release - webhooks were the
+  more-requested feature.
+
+## [3.3.3] - 2026-06-12
+
+The plugin is now translatable!
+
+### Added
+- **messages.yml** - every message shown in-game (alerts, all `/adp`
+  command output) now lives in `plugins/BetterAntiDupe/messages.yml`.
+  Translate or restyle anything you like:
+  - Colors use `&` codes (`&c` = red, `&l` = bold).
+  - `{placeholders}` are filled in by the plugin - keep them, but you
+    can move them around in the sentence.
+  - Any line you delete falls back to the built-in English text, so
+    updates can add new messages without breaking your translation.
+- Console logs stay English on purpose - that keeps errors searchable
+  and makes it easier to get help.
+- Ready-made translations (e.g. `messages_de.yml`) are planned for 3.3.5.
+
+## [3.3.2] - 2026-06-11
+
+A false-alarm crackdown. If your console ever filled up with repeated
+`[DUPE]` alerts, or honest players got flagged, this update is for you.
+
+### Fixed
+- **Alert flood stopped.** When another plugin blocked an item pickup
+  (vault, claim and loot-protection plugins do this), BetterAntiDupe could
+  spam hundreds of CRITICAL dupe alerts per second for a single item.
+  It now waits one tick and only reacts to pickups that really happened -
+  and a given item can only trigger that alert once.
+- **Worn gear counted twice.** Equipped armor and offhand items were
+  double-counted, so a worn elytra read as 2 and caused bogus
+  "has more than the ledger says" alerts.
+- **Double chests were invisible.** Items moved in and out of double
+  chests weren't recorded at all, which slowly built up false alarms.
+- **Chest moves measured, not guessed.** Shift-clicks into nearly-full
+  chests, number-key swaps, offhand swaps, double-click gathering and
+  drag-moves are now recorded by what *actually* moved. This removes a
+  whole family of false alarms (and a loophole dupers could abuse).
+- **Mining drops counted correctly.** Fortune could make the real drop
+  differ from the prediction; the plugin now looks at the real drops.
+- **Placing blocks / dropping items** is also double-checked one tick
+  later, so other plugins undoing those actions can't skew balances.
+- **More stable on busy servers.** Inventory checks now run on the
+  correct thread (proper Folia support) and database writes can no
+  longer collide with each other.
+- **Suspicion cools down properly.** It now only fades while a player
+  has been quiet, instead of fading constantly.
+- **Stash teleport links** now work for stashes in the Nether and End.
+
+### Added
+- **Villager trades are tracked.** Buying a tracked item (e.g. an
+  enchanted book from a librarian) is now recorded properly.
+- **Enchanting a book is tracked** - the new enchanted book is credited.
+- Alert severity now follows your own `alert_thresholds` settings
+  instead of a built-in list of "important" items.
+
+### Good to know
+- If players were wrongly flagged before this update, run
+  `/adp ledger clear <player>` once to reset them.
+- Plugins that hand out items directly (shops, kits, vault plugins like
+  ElytraVaults) are invisible to any event-based tracker. BetterAntiDupe is
+  built to not punish players for that - but if a specific item still
+  alerts too eagerly, raise its number in `alert_thresholds`
+  (materials.yml), or ask the plugin's author to call the
+  `recordSystemGrant` API.
+
+## [3.3.1] - 2026-06-02
+
+### Fixed
+- **Chain integrity false alarm on upgrade from 3.2.x.** Pre-3.3.0 entries
+  stored a *global* prevHash (each entry linked to the previous one written
+  server-wide). 3.3.0's per-player verifier expected a *per-player* prevHash,
+  which meant the first entry below any player's most-recent legacy entry
+  read as a chain break on startup. Verification now starts from the most
+  recent CHAIN_RESET marker, and a one-time migration appends that marker
+  for every existing player on first 3.3.1 startup. Old entries remain
+  available for history and balance; the new chain verifies cleanly.
+- **`detection.on_confirm_command` is now included in the default config.yml.**
+  3.3.0 documented the key but didn't write it on first launch, so fresh
+  installs had to add it by hand.
+
+### Changed
+- Startup chain-check log demoted from SEVERE to WARNING - a break is worth
+  attention but isn't necessarily a dupe; the message now points at
+  `/adp ledger verify <player>` for a per-player drill-down.
+
+## [3.3.0] - 2026-06-02
+
+A detection-architecture overhaul that eliminates the false-positive classes
+seen on raid farms and trial-vault looting, without weakening real detection.
+
+### Fixed
+- **Raid-farm / mob-loot false positives.** Mob deaths (and loot-table fills)
+  now authorise acquisitions, so legitimate looting of evoker totems and raid
+  drops no longer reads as a dupe. The quantity bound still flags a duped
+  entity (more items than mobs produced).
+- **Negative-ledger false positives.** A negative balance is proof of an
+  unobserved acquisition (e.g. /give, a shop plugin, a tracking gap), not a
+  dupe - duping makes a balance go positive, never negative. Reconciliation now
+  re-baselines to the real inventory and moves on instead of flagging. This was
+  the root cause of the "has 1 but ledger shows -146" alerts.
+- **Trial-vault / fast-loot false positives.** Proof-of-Witness and acquisition-
+  rate (TMAR) no longer fire standalone alerts; solo play with nobody nearby
+  never accrues suspicion at all.
+
+### Added
+- **Global `detection.sensitivity` (1-100, default 50).** One knob from very
+  lenient to very paranoid; scales the excess needed to alert.
+- **Per-player adaptive suspicion.** An earned floor (raised by deterministic
+  hits and admin confirmation; does not decay) plus transient heat (low-
+  confidence signals; decays over time). More-suspicious players trip on less.
+- **Confidence-tiered detection.** Deterministic detectors (entity-UUID reuse)
+  alert alone; source-bound excess and balance surplus are gated by suspicion +
+  sensitivity; TMAR and witness patterns are heat-only signals.
+- **Admin verdict loop.** `/adp ledger confirm <player>` pins suspicion high and
+  optionally runs `detection.on_confirm_command` ({player} placeholder);
+  `/adp ledger clear <player>` marks a false positive and resets suspicion.
+- **Baseline-on-join.** A never-seen player's owned inventory seeds their ledger
+  once, so pre-existing items don't read as a surplus.
+- **`console_log_level`** (CRITICAL/ERROR/WARNING/INFO/DEBUG) to control verbosity.
+
+### Changed
+- Source-bound matching consumes authorisations across multiple nearby drops
+  (fixes a latent excess false-flag when single drops merge into one ground
+  stack), and is chunk-keyed for O(nearby) performance under farm volume.
+- TMAR and Proof-of-Witness demoted from triggers to low-confidence signals.
+
+## [3.2.0] - 2026-05-31
+
+### Added
+- **`/adp ledger stash <player>`** - new admin command that lists a player's
+  recent CONTAINER_PUT / ENTITY_PUT / FRAME_PUT events with **clickable
+  coordinates**. Clicking the coords runs `/execute in <world> run tp @s x y z`
+  so the admin teleports directly to the stash location, including across
+  worlds. Built on the Spigot/Bukkit BaseComponent API so it works identically
+  on Spigot, Paper and Folia.
+- The current-suspects display now explains what `material: +N` means
+  (cumulative excess across all of that suspect's violations) and points
+  admins at the new stash command.
+
+### Notes
+- Adventure / MiniMessage was considered for click events but not used,
+  because Adventure isn't available on Spigot. The BungeeCord-style
+  BaseComponent API is present on every supported platform.
+
+## [3.1.0] - 2026-05-31
+
+### Added
+- **Deep container reconciliation.** The balance check now recursively descends
+  into shulker boxes, barrels, chests-stored-as-items and bundles at every
+  nesting level (up to 10 deep). Closes the "items hidden inside a held
+  shulker" blind spot - a player carrying a duped shulker full of diamonds
+  used to show a clean balance against an empty main inventory; the deep
+  scan counts the contents and surfaces the discrepancy.
+- **Deep foreign-item detection.** `findForeignItemsDeep` walks the same
+  nesting tree and reports any tracked items inside containers whose owner
+  UUID doesn't match the bearer, so admins can see exactly which slot path
+  leads to suspicious contents.
+
+### Notes
+- Recursion is bounded at depth 10 (matches the previous v1 isotope scanner
+  limit) to defend against pathological nested-container chains.
+- The shallow `countOwnedInInventory` / `findForeignItems` methods are kept
+  for callers that explicitly want a flat view.
+
+## [3.0.1] - 2026-05-31
+
+### Fixed
+- Decorated pot inventory access now uses the documented no-argument `getItem()` /
+  `setItem()` accessors on `DecoratedPotInventory` rather than the slot-indexed
+  form inherited from `Inventory`. Functionally equivalent today but no longer
+  depends on slot 0 being a stable internal detail.
+- Entity-inventory classification narrowed: `is Minecart` was too broad
+  (`Minecart` doesn't implement `InventoryHolder`). Now checks `StorageMinecart`
+  and `HopperMinecart` specifically. `ChestBoat` continues to be caught via
+  `is Boat` because it extends the Boat interface.
+
+## [3.0.0] - 2026-05-31
+
+### Removed
+- Dead code with no callers: `PlatformScheduler.runAsyncRepeating` and its task-handle types, `LedgerStorage.append` (also unsafe by contract, writing a caller-supplied `prevHash` with no check that it linked to the tip), `getPlayerMaterialEntries` and `recomputeBalance` (also quietly wrong, bounding all-material rows rather than matching ones), `invalidateBalance`, and `SuspicionManager.leniencyScale`.
+- `proguard-rules.pro`, 8.4 KB of configuration nothing in the build ever read. Its presence implied releases were obfuscated, which they are not.
+
+- **Breaking**: the legacy per-item-NBT isotope tracking system (v1) has been
+  removed entirely. The Chain of Custody ledger (formerly v2) is now the sole
+  detection layer. The visible benefit: vanilla item stacking works correctly
+  again - diamonds, netherite ingots and all other tracked items merge into
+  single stacks as they should.
+- `/adp inspect`, `/adp dupetest` and `/adp cleanse` commands removed (they
+  were specific to the isotope system).
+- `ledger.enabled` config option removed (the ledger is always on).
+
+### Added
+- **Folia compatibility.** Detects Folia at runtime and dispatches scheduler
+  calls to the regional schedulers; falls back to `BukkitScheduler` on Paper
+  non-Folia and Spigot. `plugin.yml` declares `folia-supported: true`.
+- **Spigot compatibility.** All scheduler access goes through the reflection-
+  based abstraction, so the same jar loads on Paper, Folia and Spigot. No NMS
+  references anywhere.
+- **Balance read-through cache.** Hot reconciliation queries no longer round-
+  trip to the storage backend on every call - appends bump the cached entry
+  atomically inside the chain-tip mutex.
+
+### Changed
+- Audit-trail vocabulary unchanged; existing ledger entries remain readable.
+- Storage backends still pluggable (SQLite default, Redis, Memory).
+
+### Migration
+Existing 2.x installs running v1 isotope data (the `isotopes` table in
+`storage.db` or `iso:*` keys in Redis) can safely keep that data - the plugin
+no longer reads it. To reclaim disk space you can drop the `isotopes` table
+or `FLUSHDB` the relevant Redis database; nothing in 3.0.0 references those
+keys.
+
+## [2.7.0] - 2026-05-30
+
+### Added
+- Per-entity pickup history: every item-entity UUID is recorded the first time
+  it's picked up. If the same UUID is ever picked up again - which only happens
+  for chunk-load dupes, drop-pickup race dupes, and cross-server-race dupes -
+  the second pickup is flagged as a CRITICAL dupe alert and is not credited to
+  the player's ledger balance.
+- Pickup history is persisted across server restarts and prunes automatically
+  after 30 days. Implemented across all three storage backends (SQLite uses a
+  new pickup_history table; Redis uses SET NX with a 30-day TTL; in-memory
+  uses ConcurrentHashMap).
+
+### Changed
+- Closes the last remaining family on the original dupe taxonomy: chunk-save
+  entity respawn dupes are now detected with the same per-entity ledger that
+  catches drop-pickup races.
+
+## [2.6.0] - 2026-05-30
+
+### Fixed
+- Long-standing double-counting bug where mining a tracked block credited the
+  player twice - once when the block broke and once when the dropped item was
+  picked up. The ledger now credits the pickup only, and the originating event
+  (mine, frame take, pot break) is recorded as the pickup's source. Same fix
+  applies to intentional item-frame takes.
+- Excess pickups from a single expected drop (the dupe surplus) are no longer
+  credited to the ledger at all, so the resulting inventory-vs-ledger gap
+  reinforces the immediate dupe alert with a balance-reconciliation hit on the
+  next pass.
+
+### Changed
+- Ledger history entries for PICKUP now carry source attribution
+  (e.g. `MINE:DIAMOND_ORE|TOOL:NETHERITE_PICKAXE`), so admins can see at a glance
+  whether an acquisition came from mining, a frame, a pot break, or a generic
+  ground pickup.
+
+## [2.5.0] - 2026-05-30
+
+### Added
+- Decorated pot deposits are now recorded as container puts; the matching break
+  registers the deposited stack as an expected drop, so deposit-then-break cycles
+  net to zero in the ledger and any extra copies are flagged as dupes
+
+### Changed
+- The block-break handler now special-cases decorated pots - their contents are
+  treated as previously-deposited items rather than fresh "mined" drops, which
+  removes a double-counting source for legitimate pot use
+
+## [2.4.0] - 2026-05-30
+
+### Added
+- Material lists now live in their own file, `materials.yml`, so `config.yml`
+  stays short even when many items are tracked. Holds `tracked_materials`,
+  `tmar_limits` and `alert_thresholds`.
+- Automatic one-time migration: existing installs that had these keys in
+  `config.yml` get them moved to `materials.yml` on first start of this
+  version, and the legacy keys are removed from `config.yml`.
+
+### Changed
+- User guide updated to document the new configuration file layout.
+
+## [2.3.0] - 2026-05-30
+
+### Added
+- Workstation output tracking for smithing tables, anvils, looms, stonecutters,
+  cartography tables and grindstones (closes the workstation-output blind spot for
+  these recipes)
+- Furnace, smoker and blast furnace output tracking on player extract
+- Lectern book-take tracking (closes lectern swap dupe family)
+- Ender chest transfers now recorded as container put/take
+- Bundle content scanning: items stored inside bundles are now inspected just like
+  shulker box contents, so duped items can no longer be laundered through bundles
+
+### Changed
+- Audit-trail vocabulary extended with STATION_OUTPUT action
+
+## [2.2.0] - 2026-05-30
+
+### Added
+- Item-frame transaction tracking: placing into and removing from frames is now ledgered
+- Item-frame drop accounting: frames register exactly one expected drop on break, and any
+  surplus pickups in that area trigger a high-severity alert (closes the piston / chunk-race
+  item-frame dupe family)
+- Entity-inventory tracking for horses, donkeys, llamas, mules, chest boats and chest minecarts
+- Public API `ChainOfCustody.recordSystemGrant(...)` for other plugins to declare legitimate
+  item grants and avoid false-positive reconciliation hits
+
+### Changed
+- Audit-trail vocabulary extended with FRAME_PUT, FRAME_TAKE, ENTITY_PUT, ENTITY_TAKE actions
+
+## [2.1.0] - 2026-05-30
+
+### Added
+- Pluggable storage backend with three options: file-based (default), networked, and in-memory
+- File-based storage works out of the box - no external services required
+- New user guide covering install, configuration, and feature walkthroughs
+- Configurable thresholds, cooldowns, and witness radius now read from config
+
+### Changed
+- Targets Paper 1.21.x (verified up to 1.21.11)
+- Default install path no longer depends on any external service
+- Audit trail writes are now serialised so concurrent events keep the chain intact
+
+### Fixed
+- Network connection identifiers built correctly when a password is set
+- Background workers shut down cleanly on plugin disable / server reload
+- Container transfers logged with correct direction and quantity
+- Shift-craft amount no longer over-counts when the inventory is nearly full
+- Witness history collections are now safe for concurrent access
+- Large-scope key lookups replaced with cursored scans to avoid backend stalls
+- Recent-acquisition checks no longer make per-entry round-trips
+- Inventory snapshots are cleaned up when a player disconnects mid-session
+- Offline player lookups no longer block the calling thread
+
+### Removed
+- External license verification and feature gating
+- Build-time obfuscation pass (release artefact is now a plain shaded jar)
+
+## [2.0.0] - 2025-12-07
+
+### Added
+- Next-generation protection engine with enhanced detection capabilities
+- Distributed validation system for improved accuracy
+- Player trust scoring based on behavioral patterns
+- Advanced activity monitoring with proximity awareness
+- Balance verification system for comprehensive item tracking
+- Admin tools for investigating suspicious activity (`/adp ledger`)
+- Chain integrity verification for data consistency
+- Configurable detection sensitivity settings
+
+### Changed
+- Items now stack normally with the new protection system
+- Improved performance with optimized data structures
+- Enhanced suspect tracking with detailed violation history
+
+### Technical
+- New protection system runs alongside existing for gradual migration
+- Separate database storage for new system (configurable)
+- Automatic maintenance and cleanup tasks
+
+## [1.0.3] - 2025-12-07
+
+### Added
+- New admin command to reset item security status
+- Fixes issue where flagged items couldn't be merged
+
+## [1.0.2] - 2025-12-07
+
+### Changed
+- Consolidated all commands under `/adp` base command
+- Added tab completion for subcommands
+- Added command aliases for convenience
+
+## [1.0.1] - 2025-12-07
+
+### Added
+- New admin command for testing and demonstration purposes
+- Enhanced feedback messages for protected items
+
+### Changed
+- Improved internal identifiers for better compatibility
+- Refined user-facing terminology for clarity
+
+### Fixed
+- Minor stability improvements
+
+## [1.0.0] - 2025-12-06
+
+### Added
+- Initial release
+- Core protection system for valuable items
+- Real-time monitoring and detection
+- Admin inspection tools
+- Configurable item tracking
+- Rate limiting for suspicious activity
+- Shadow mode for silent observation
+- Redis backend integration
+- License verification system

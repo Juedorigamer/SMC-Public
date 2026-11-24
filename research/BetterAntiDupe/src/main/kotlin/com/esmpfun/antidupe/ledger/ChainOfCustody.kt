@@ -1,0 +1,459 @@
+package com.esmpfun.antidupe.ledger
+
+import com.esmpfun.antidupe.platform.PlatformScheduler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import org.bukkit.Material
+import org.bukkit.entity.Player
+import org.bukkit.plugin.Plugin
+import java.util.UUID
+import java.util.logging.Level
+import java.util.logging.Logger
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+
+class ChainOfCustody private constructor(
+    private val plugin: Plugin,
+    private val ledgerStorage: LedgerStorage,
+    val ownershipManager: OwnershipManager,
+    val witnessManager: WitnessManager,
+    val reconciliationEngine: ReconciliationEngine,
+    private val eventHandler: LedgerEventHandler,
+    private val scope: CoroutineScope,
+    private val trackedMaterialsView: Set<Material>,
+    private val logger: Logger,
+    private val scheduler: PlatformScheduler,
+    private val sweepIntervalMinutes: Int,
+    private val sweepStaggerMs: Long
+) {
+    private var maintenanceJob: Job? = null
+    private var sweepJob: Job? = null
+
+    companion object {
+        suspend fun initialize(
+            plugin: Plugin,
+            scope: CoroutineScope,
+            scheduler: PlatformScheduler,
+            ledgerStorage: LedgerStorage,
+            trackedMaterials: Set<Material>,
+            tmarLimits: Map<Material, Int>,
+            witnessRadius: Double,
+            verifiedThreshold: Int,
+            suspiciousSoloRatio: Double,
+            reconciliationCooldownMs: Long,
+            alertThresholds: Map<Material, Int>,
+            defaultAlertThreshold: Int,
+            sensitivity: Int,
+            logger: Logger,
+            ownershipKeys: OwnershipKeys? = null,
+            reconcileOnPickup: Boolean = true,
+            reconcileOnInventoryClose: Boolean = false,
+            flagSuspiciousPatterns: Boolean = true,
+            hopperMode: LedgerEventHandler.HopperMode = LedgerEventHandler.HopperMode.LOG,
+            blockCollectToCursor: Boolean = false,
+            sweepIntervalMinutes: Int = 15,
+            sweepStaggerMs: Long = 250L,
+            signedMarks: Boolean = true,
+            unsignedMarks: String = "AUTO"
+        ): ChainOfCustody {
+            val keyring = if (signedMarks) MarkKeyring.load(plugin.dataFolder, ledgerStorage, logger) else null
+            val acceptUnsigned = when (unsignedMarks.uppercase()) {
+                "ACCEPT" -> true
+                "IGNORE" -> false
+                else -> keyring?.legacyMarks != MarkKeyFile.LegacyMarks.IGNORE
+            }
+            val ownershipManager = OwnershipManager(
+                plugin,
+                primaryKey = ownershipKeys?.primary,
+                legacyKeys = ownershipKeys?.legacy ?: emptyList(),
+                signer = keyring?.signer,
+                acceptUnsigned = acceptUnsigned
+            )
+            if (keyring != null) {
+                logger.info("[Marks] Owner marks are signed (key ${keyring.signer.currentKeyId})" +
+                    (if (keyring.created) ", new key made in mark-signing.key" else "") +
+                    (if (keyring.adopted) ", using the key shared through the database" else "") + ". " +
+                    if (acceptUnsigned) "Marks from before signing are still trusted and get signed as players carry them."
+                    else "Marks without a signature are not trusted.")
+            }
+            val witnessManager = WitnessManager(plugin, witnessRadius, verifiedThreshold, suspiciousSoloRatio)
+            val suspicionManager = SuspicionManager(sensitivity)
+            val settleTracker = SettleTracker()
+
+            val reconciliationEngine = ReconciliationEngine(
+                plugin = plugin,
+                ledgerStorage = ledgerStorage,
+                ownershipManager = ownershipManager,
+                trackedMaterials = trackedMaterials,
+                tmarLimits = tmarLimits,
+                logger = logger,
+                scope = scope,
+                scheduler = scheduler,
+                suspicion = suspicionManager,
+                reconciliationCooldown = reconciliationCooldownMs,
+                alertThresholds = alertThresholds,
+                defaultAlertThreshold = defaultAlertThreshold,
+                settle = settleTracker
+            )
+
+            val worldStock = WorldStock(
+                storage = ledgerStorage,
+                threshold = { reconciliationEngine.alertThresholdFor(it) },
+                logger = logger
+            ) { actor, owner, material, deficit, where ->
+                scheduler.runMain(Runnable {
+                    val server = plugin.server
+                    val actorName = server.getPlayer(actor)?.name ?: server.getOfflinePlayer(actor).name ?: actor.toString()
+                    val ownerName = server.getOfflinePlayer(owner).name ?: owner.toString()
+                    reconciliationEngine.flagWorldStockDeficit(actor, actorName, ownerName, material, deficit, where)
+                })
+            }
+
+            val eventHandler = LedgerEventHandler(
+                plugin = plugin,
+                ledgerStorage = ledgerStorage,
+                ownershipManager = ownershipManager,
+                reconciliationEngine = reconciliationEngine,
+                witnessManager = witnessManager,
+                trackedMaterials = trackedMaterials,
+                logger = logger,
+                scope = scope,
+                scheduler = scheduler,
+                reconcileOnPickup = reconcileOnPickup,
+                reconcileOnInventoryClose = reconcileOnInventoryClose,
+                flagSuspiciousPatterns = flagSuspiciousPatterns,
+                hopperMode = hopperMode,
+                blockCollectToCursor = blockCollectToCursor,
+                settle = settleTracker,
+                worldStock = worldStock
+            )
+
+            ownershipManager.onForgedMark = { actor, claimed, item ->
+                scheduler.runMain(Runnable {
+                    val server = plugin.server
+                    val actorName = server.getPlayer(actor)?.name ?: server.getOfflinePlayer(actor).name ?: actor.toString()
+                    val ownerName = server.getOfflinePlayer(claimed).name ?: claimed.toString()
+                    reconciliationEngine.flagForgedMarks(actor, actorName, listOf(ForgedMark(item.type, item.amount, claimed)),
+                        mapOf(claimed to ownerName))
+                })
+            }
+            val otherKeyWarnedAt = java.util.concurrent.atomic.AtomicLong(0)
+            ownershipManager.onOtherKey = {
+                val now = System.currentTimeMillis()
+                val last = otherKeyWarnedAt.get()
+                if (now - last > 6 * 3600_000L && otherKeyWarnedAt.compareAndSet(last, now)) {
+                    logger.warning("[Marks] Some items carry owner marks signed with a key this server does not have," +
+                        " so they count as unmarked. This happens when items come from another server through an" +
+                        " inventory sync plugin. Copy plugins/BetterAntiDupe/mark-signing.key from that server to this" +
+                        " one and restart. Servers that share a Redis database share the key by themselves.")
+                }
+            }
+
+            plugin.server.pluginManager.registerEvents(eventHandler, plugin)
+            eventHandler.registerPaperOnlyListeners()
+            eventHandler.registerHopperListener()
+            eventHandler.registerCollectBlocker()
+
+            val coc = ChainOfCustody(plugin, ledgerStorage, ownershipManager, witnessManager,
+                reconciliationEngine, eventHandler, scope, trackedMaterials, logger,
+                scheduler, sweepIntervalMinutes, sweepStaggerMs)
+
+            coc.migrateLegacyChains()
+            scope.launch {
+                try {
+                    worldStock.seedIfNeeded(ledgerStorage.getTrackedPlayers())
+                } catch (e: Exception) {
+                    logger.warning("[Ledger] Could not count stored items from history, so storage dupe alerts stay off until the next start: ${e.message}")
+                    com.esmpfun.antidupe.util.ErrorReporter.report("world-stock-seed", e)
+                }
+            }
+            coc.startMaintenance()
+            coc.startPeriodicSweep()
+            coc.verifyIntegrityAsync()
+
+            logger.info("[CoC] Chain of Custody initialized (v3.x detection model)")
+            logger.info("[CoC] Tracking ${trackedMaterials.size} materials")
+            return coc
+        }
+    }
+
+    suspend fun getChainTip(): ChainTip? = ledgerStorage.getTip()
+    suspend fun getEntry(id: UUID): LedgerEntry? = ledgerStorage.getEntry(id)
+    suspend fun getBalance(player: UUID, material: Material): Int = ledgerStorage.getBalance(player, material)
+    suspend fun getAllBalances(player: UUID): Map<Material, Int> = ledgerStorage.getAllBalances(player)
+    suspend fun getPlayerHistory(player: UUID, limit: Int = 50): List<LedgerEntry> =
+        ledgerStorage.getPlayerEntries(player, limit = limit.toLong())
+
+    suspend fun getPlayerStashes(player: UUID, limit: Int = 30): List<LedgerEntry> {
+        val stashActions = setOf(
+            LedgerAction.CONTAINER_PUT,
+            LedgerAction.ENTITY_PUT,
+            LedgerAction.FRAME_PUT
+        )
+        // Pull a generous window and filter; this only runs on the admin command path.
+        return ledgerStorage.getPlayerEntries(player, limit = (limit * 4).toLong())
+            .filter { it.action in stashActions }
+            .take(limit)
+    }
+
+    suspend fun verifyIntegrity(player: UUID? = null): IntegrityResult =
+        if (player != null) ledgerStorage.verifyChainIntegrity(player) else ledgerStorage.verifyAllChains()
+
+    /**
+     * One-time migration from the pre-3.3.0 global hash chain to per-player chains: stamp a
+     * reset marker on any tracked player who lacks one, so verification starts there and
+     * ignores the old global-chain prevHashes.
+     */
+    private suspend fun migrateLegacyChains() {
+        // The file marker, not the 200-entry scan below, is what makes this run once: a busy
+        // player's marker falls out of that window and would be re-stamped every startup.
+        val marker = java.io.File(plugin.dataFolder, "chain-migration-done")
+        if (marker.exists()) return
+
+        // Written before the stamping, not after: the marker is the only thing that stops this
+        // running again, and a busy player's stamp falls out of the 200-entry window below, so a
+        // failed write would re-stamp them on every startup.
+        try {
+            plugin.dataFolder.mkdirs()
+            marker.writeText(
+                "Written once, after per-player chain verification was set up." +
+                    " Delete this file only if you restore a database from before that change."
+            )
+        } catch (e: Exception) {
+            logger.warning("[CoC] Could not write the chain-migration marker, so the one-time history migration is skipped: ${e.message}")
+            com.esmpfun.antidupe.util.ErrorReporter.report("chain-migration-marker", e)
+            return
+        }
+
+        val players = ledgerStorage.getTrackedPlayers()
+        var stamped = 0
+        for (player in players) {
+            val history = ledgerStorage.getPlayerEntries(player, limit = 200)
+            if (history.any { it.isChainReset() }) continue
+            ledgerStorage.appendBuilt(
+                player = player,
+                action = LedgerAction.CHAIN_RESET,
+                material = Material.AIR,
+                quantity = 0,
+                metadata = LedgerMetadata(notes = "legacy-global-chain")
+            )
+            stamped++
+        }
+        if (stamped > 0) {
+            logger.info("[CoC] Migrated $stamped legacy chain(s) to per-player verification - old entries kept for history, new chain verifies clean")
+        }
+    }
+
+    private fun verifyIntegrityAsync() {
+        scope.launch {
+            try {
+                val result = verifyIntegrity()
+                if (result.valid) logger.info("[CoC] Chain integrity verified: ${result.entriesVerified} entries OK")
+                else {
+                    logger.warning("[CoC] Chain integrity check found a break: ${result.error}")
+                    logger.warning("[CoC] Broken at entry: ${result.brokenAt} - investigate or run /adp ledger verify <player>")
+                }
+            } catch (e: Exception) {
+                logger.log(Level.WARNING, "[CoC] integrity check failed", e)
+                com.esmpfun.antidupe.util.ErrorReporter.report("integrity-check", e)
+            }
+        }
+    }
+
+    suspend fun reconcile(player: Player): ReconciliationResult = reconciliationEngine.reconcile(player)
+
+    fun reconcileAsync(
+        player: Player,
+        ignoreCooldown: Boolean = false,
+        callback: ((ReconciliationResult) -> Unit)? = null
+    ) {
+        reconciliationEngine.reconcileAsync(player, ignoreCooldown, callback)
+    }
+
+    suspend fun quickCheck(player: Player, material: Material): QuickCheckResult =
+        reconciliationEngine.quickCheck(player, material)
+
+    suspend fun checkTmar(player: Player, material: Material, amount: Int): TmarCheckResult =
+        reconciliationEngine.checkTmar(player, material, amount)
+
+    fun getWitnessStats(player: UUID): WitnessStats = witnessManager.getPlayerStats(player)
+    fun hasSuspiciousPattern(player: UUID): SuspicionAnalysis = witnessManager.hasSuspiciousPattern(player)
+    fun getTrustScore(player: UUID): TrustScore = witnessManager.getTrustScore(player)
+
+    /**
+     * Declare a legitimate grant of items to a player. Other plugins must call this when they
+     * add items outside normal Bukkit events, or reconciliation sees the surplus and may flag
+     * the player as a duper.
+     */
+    suspend fun recordSystemGrant(player: UUID, material: Material, amount: Int, source: String) {
+        if (amount <= 0) return
+        ledgerStorage.appendBuilt(
+            player = player,
+            action = LedgerAction.ADMIN_GIVE,
+            material = material,
+            quantity = amount,
+            metadata = LedgerMetadata(notes = "SYSTEM_GRANT:$source")
+        )
+    }
+
+    /** Declare items another plugin took out of a player's inventory, so the record drops with them. */
+    suspend fun recordSystemRemoval(player: UUID, material: Material, amount: Int, source: String) {
+        if (amount <= 0) return
+        ledgerStorage.appendBuilt(
+            player = player,
+            action = LedgerAction.CONSUME,
+            material = material,
+            quantity = -amount,
+            metadata = LedgerMetadata(notes = "SYSTEM_REMOVAL:$source")
+        )
+    }
+
+    val trackedMaterials: Set<Material> get() = trackedMaterialsView
+
+    /** Without this, a long-running server keeps every player's balances it ever read. */
+    suspend fun forgetCachedBalances(player: UUID) = ledgerStorage.forgetCachedBalances(player)
+
+    fun onDupeAlert(listener: (DupeAlert) -> Unit) = reconciliationEngine.addAlertListener(listener)
+    fun getSuspects(): List<SuspectProfile> = reconciliationEngine.getAllSuspects()
+    fun getSuspect(player: UUID): SuspectProfile? = reconciliationEngine.getSuspect(player)
+    fun clearSuspect(player: UUID) = reconciliationEngine.clearSuspect(player)
+
+    fun confirmSuspect(player: UUID) = reconciliationEngine.confirmSuspect(player)
+    /** Clears suspicion and removes the player from the suspect list, unlike [clearSuspect]. */
+    fun clearVerdict(player: UUID) = reconciliationEngine.clearVerdict(player)
+    /** Current effective suspicion, 0 to 100. */
+    fun suspicionOf(player: UUID): Double = reconciliationEngine.suspicionOf(player)
+
+    private val joinBaseline = JoinBaseline(ledgerStorage)
+
+    /** Snapshots on the player's thread; this coroutine runs on Dispatchers.IO. */
+    /** Returns true when this join wrote the player's first baseline. */
+    suspend fun baselineIfNew(player: Player): Boolean =
+        joinBaseline.run(player.uniqueId) { reconciliationEngine.snapshotOwned(player) }
+
+    /**
+     * Record that the plugin took a surplus back out of a player's inventory. Quantity is zero
+     * on purpose: the removal cancels a surplus the balance never counted, so only the history
+     * entry is wanted.
+     */
+    suspend fun recordEnforcement(player: UUID, material: Material, amount: Int, severity: String) {
+        ledgerStorage.appendBuilt(
+            player = player,
+            action = LedgerAction.RECONCILE,
+            material = material,
+            quantity = 0,
+            metadata = LedgerMetadata(notes = "ENFORCED_REMOVAL:$amount:$severity")
+        )
+    }
+
+    /**
+     * Re-check every online player on a timer, catching dupes that never trigger a pickup.
+     * Each check still respects the per-player cooldown, so a sweep never doubles up with a
+     * pickup-triggered check.
+     */
+    private fun startPeriodicSweep() {
+        if (sweepIntervalMinutes <= 0) {
+            logger.info("[CoC] Periodic balance sweep disabled (interval set to 0)")
+            return
+        }
+        val intervalMs = sweepIntervalMinutes * 60_000L
+        sweepJob = scope.launch {
+            // Offset the first pass so a restart does not scan everyone during the join rush.
+            delay(intervalMs)
+            while (isActive) {
+                try {
+                    sweepOnce()
+                } catch (e: Exception) {
+                    logger.warning("[CoC] Balance sweep error: ${e.message}")
+                    com.esmpfun.antidupe.util.ErrorReporter.report("balance-sweep", e)
+                }
+                delay(intervalMs)
+            }
+        }
+        logger.info("[CoC] Periodic balance sweep every $sweepIntervalMinutes min")
+    }
+
+    private suspend fun sweepOnce() {
+        val players = onlinePlayersSnapshot()
+        if (players.isEmpty()) return
+        logger.fine("[CoC] Balance sweep starting for ${players.size} player(s)")
+        for (player in players) {
+            if (!player.isOnline) continue
+            reconciliationEngine.reconcileAsync(player)
+            if (sweepStaggerMs > 0) delay(sweepStaggerMs)
+        }
+    }
+
+    /** On Folia the player list is not safe to walk off the global region thread. */
+    private suspend fun onlinePlayersSnapshot(): List<Player> =
+        suspendCancellableCoroutine { cont ->
+            scheduler.runMain(Runnable {
+                try {
+                    cont.resume(plugin.server.onlinePlayers.toList())
+                } catch (t: Throwable) {
+                    cont.resumeWithException(t)
+                }
+            })
+        }
+
+    private fun startMaintenance() {
+        maintenanceJob = scope.launch {
+            while (isActive) {
+                delay(300_000)
+                try {
+                    witnessManager.pruneHistory()
+                    ledgerStorage.pruneRecentWindows()
+                    // 30 days: long enough to catch latent chunk-load dupes, short enough to
+                    // bound disk use.
+                    ledgerStorage.prunePickupHistory(30L * 86_400_000L)
+                    eventHandler.pruneAuthorizedDrops()
+                    eventHandler.pruneHopperTrail()
+                    reconciliationEngine.pruneMaintenance()
+                    // Decays transient heat only; the earned suspicion floor is untouched.
+                    reconciliationEngine.decaySuspicion()
+                    logger.fine("[CoC] Maintenance completed")
+                } catch (e: Exception) {
+                    logger.warning("[CoC] Maintenance error: ${e.message}")
+                    com.esmpfun.antidupe.util.ErrorReporter.report("maintenance", e)
+                }
+            }
+        }
+    }
+
+    /**
+     * Must run before the shutdown drain: these loops never finish on their own, so waiting on
+     * in-flight ledger writes would block until it timed out.
+     */
+    fun stopBackgroundJobs() {
+        maintenanceJob?.cancel()
+        sweepJob?.cancel()
+    }
+
+    fun shutdown() {
+        stopBackgroundJobs()
+        ledgerStorage.close()
+        logger.info("[CoC] Chain of Custody shutdown complete")
+    }
+
+    suspend fun getSystemStats(): SystemStats {
+        val tip = getChainTip()
+        val suspects = getSuspects()
+        return SystemStats(
+            chainTipId = tip?.lastEntryId,
+            chainTipHash = tip?.lastHash,
+            activeSuspects = suspects.size,
+            suspectNames = suspects.map { it.playerName }
+        )
+    }
+}
+
+data class SystemStats(
+    val chainTipId: UUID?,
+    val chainTipHash: String?,
+    val activeSuspects: Int,
+    val suspectNames: List<String>
+)

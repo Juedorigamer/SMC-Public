@@ -1,0 +1,4 @@
+name: BundleDupeV3Fix
+main: ru.violence.bundledupev3fix.BundleDupeV3FixPlugin
+version: 1.0.0
+api-version: 1.21

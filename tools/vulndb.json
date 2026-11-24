@@ -1,0 +1,138 @@
+{
+  "updatedAt": "2026-11-18",
+  "plugins": [
+    {
+      "name": "Towny",
+      "aliases": ["towny"],
+      "affected": ">=0.100.2.4 <0.100.2.7",
+      "fixed": "0.100.2.7",
+      "severity": "high",
+      "what": "La devolución del banco de town/nation al borrar duplicaba dinero.",
+      "source": "X-Warden"
+    },
+    {
+      "name": "AxTrade",
+      "aliases": ["axtrade"],
+      "affected": "<1.10.0",
+      "fixed": "1.10.0",
+      "severity": "high",
+      "what": "Exploit de trade (release notes piden actualizar).",
+      "source": "X-Warden / du-addon TradeDupe"
+    },
+    {
+      "name": "QuickShop-Hikari",
+      "aliases": ["quickshop", "chestshop"],
+      "affected": "<6.2.0.9",
+      "fixed": "6.2.0.9",
+      "severity": "high",
+      "what": "Exploit en la GUI de shop.",
+      "source": "X-Warden"
+    },
+    {
+      "name": "QuickShop-Hikari",
+      "aliases": ["quickshop", "chestshop"],
+      "affected": "*",
+      "fixed": "unknown",
+      "severity": "high",
+      "what": "/qs permission sin chequeo de dueño: escalada a AdminShop.",
+      "source": "Spigot / QuickShop patch",
+      "confidence": "unverified"
+    },
+    {
+      "name": "ExcellentCrates",
+      "aliases": ["excellentcrates"],
+      "affected": "*",
+      "fixed": "unknown",
+      "severity": "medium",
+      "what": "Glitch del preview de caja / saltar animación = recompensa extra.",
+      "source": "X-Warden / r/admincraft",
+      "confidence": "unverified"
+    },
+    {
+      "name": "Oraxen",
+      "aliases": ["oraxen"],
+      "affected": "<1.214.0",
+      "fixed": "1.214.0",
+      "severity": "high",
+      "what": "Soulbound se duplica al morir cuando otro plugin conserva el inventario.",
+      "source": "X-Warden"
+    },
+    {
+      "name": "Oraxen",
+      "aliases": ["oraxen"],
+      "affected": "<1.209.0",
+      "fixed": "1.209.0",
+      "severity": "high",
+      "what": "Furniture storage duplicaba ítems con varios viewers.",
+      "source": "X-Warden"
+    },
+    {
+      "name": "Oraxen",
+      "aliases": ["oraxen"],
+      "affected": "<1.204.0",
+      "fixed": "1.204.0",
+      "severity": "high",
+      "what": "Soltar un backpack con su GUI abierta duplicaba.",
+      "source": "X-Warden"
+    },
+    {
+      "name": "AuctionHouse",
+      "aliases": ["auctionhouse"],
+      "affected": "*",
+      "fixed": "unknown",
+      "severity": "high",
+      "what": "List-and-leave, cancel race, precio NaN/negativo.",
+      "source": "Spigot reviews (fuente no verificada — contrastar antes de usar)",
+      "confidence": "unverified"
+    },
+    {
+      "name": "UltraCoinFlip",
+      "aliases": ["coinflip", "cf", "ultracoinflip"],
+      "affected": "*",
+      "fixed": "unknown",
+      "severity": "medium",
+      "what": "Hipótesis: doble reembolso en cancelación. No reproducida en pruebas con delay de comando (el plugin aplica cooldown de ~3 s al delete). Pendiente: cancel por GUI.",
+      "source": "Prueba de campo propia (ver out/cf-test-*.json)",
+      "confidence": "hypothesis"
+    }
+  ],
+  "cves": [
+    {
+      "id": "CVE-2026-55624",
+      "plugin": "Lost-Auction",
+      "severity": "medium",
+      "what": "Jugadores podían sacar bloques/dupear ítems desde la GUI de subasta.",
+      "source": "referencia secundaria (sin contraste con NVD/MITRE)",
+      "verified": false
+    },
+    {
+      "id": "CVE-2024-41564",
+      "plugin": "EMI",
+      "severity": "medium",
+      "what": "Falta de validación de slot/stack → duplicación.",
+      "source": "NVD/MITRE"
+    },
+    {
+      "id": "CVE-2024-48645",
+      "plugin": "Command Block IDE",
+      "severity": "high",
+      "what": "Missing authorization (CWE-862) en functions.",
+      "source": "NVD/MITRE"
+    },
+    {
+      "id": "CVE-2026-62968",
+      "plugin": "Dream Displays",
+      "severity": "high",
+      "what": "Inyección de argumentos a yt-dlp.",
+      "source": "referencia secundaria (sin contraste con NVD/MITRE)",
+      "verified": false
+    },
+    {
+      "id": "CVE-2021-44228",
+      "plugin": "Log4j",
+      "severity": "critical",
+      "what": "Log4Shell (RCE por JNDI).",
+      "source": "NVD/MITRE"
+    }
+  ]
+}

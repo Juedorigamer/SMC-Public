@@ -1,0 +1,35 @@
+# Binarios grandes / regenerables / terceros
+node_modules/
+tools/viaproxy/
+
+# Secretos y configs locales con rutas del secreto
+.secrets/
+app/autorun.json
+
+# Allowlist real de cuentas (el ejemplo versionado es accounts.txt.example)
+tools/lib/accounts.txt
+
+# Salidas de corridas (evidencia propia de cada usuario; no se versiona)
+out/
+
+# Logs y restos
+*.log
+*.err
+app/*.pid
+
+# Lab: solo se versionan las configs; jars/world/logs se regeneran
+lab/*
+!lab/server.properties
+!lab/whitelist.json
+!lab/start.cmd
+!lab/eula.txt
+!lab/bukkit.yml
+!lab/spigot.yml
+!lab/commands.yml
+!lab/help.yml
+!lab/version_history.json
+lab/plugins/*
+!lab/plugins/Essentials/
+lab/plugins/Essentials/userdata/
+lab/plugins/Essentials/usermap.bin
+lab/plugins/Essentials/uuids.bin

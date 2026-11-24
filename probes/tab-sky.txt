@@ -1,0 +1,9 @@
+/spawnershop 
+/ecocrates 
+/talismans 
+/keys 
+/crates 
+/ah 
+/axshulker 
+/minionsshop 
+/is 

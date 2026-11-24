@@ -1,0 +1,29 @@
+{
+  "name": "smc",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SMC — auditoría y reconocimiento black-box de servidores Minecraft (autorizados), con GUI, tools offline, servidor MCP y digest para LLM",
+  "main": "app/main.js",
+  "scripts": {
+    "recon": "node recon.js",
+    "check": "node --check recon.js && node --check report.js && node --check mcp-server.js && node --check tools/lib/mc.js && node --check tools/llm-digest.js && node --check tools/gen-audit-report.js && node --check tools/cf-test.js && node --check tools/ah-test.js && node --check tools/kit-test.js && node --check tools/packet-race.js && node --check tools/version-probe.js && node --check tools/towny-probe.js",
+    "gui": "node_modules\\electron\\dist\\electron.exe .",
+    "gui:check": "node --check app/main.js && node --check app/preload.js && node --check app/renderer/app.js",
+    "mcp": "node mcp-server.js",
+    "digest": "node tools/llm-digest.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "minecraft-protocol": "^1.68.0",
+    "mineflayer": "^4.39.0",
+    "uuid-1345": "^1.0.2"
+  },
+  "devDependencies": {
+    "acorn": "^8.19.0",
+    "electron": "^45.2.3",
+    "madge": "^8.0.0"
+  }
+}

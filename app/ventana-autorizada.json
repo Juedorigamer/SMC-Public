@@ -1,0 +1,5 @@
+{
+  "from": null,
+  "until": null,
+  "nota": "Franja horaria autorizada para sesiones REMOTAS desde la GUI (formato HH:MM, hora local). Mientras from/until sean null, la GUI rechaza cualquier sesión remota: completalo solo cuando tengas autorización escrita del dueño del servidor. La UI no puede cambiar este archivo: solo el proceso principal lo lee. Las conexiones directas a 127.0.0.1/localhost (lab propio) no requieren franja."
+}

@@ -1,0 +1,66 @@
+# =============================================================================
+# BetterAntiDupe - Tracked Materials
+# =============================================================================
+# This file is intentionally separate from config.yml so it can grow long
+# without cluttering the main configuration. Edit freely; restart or reload
+# the plugin to apply changes.
+#
+# Items are written with their vanilla Minecraft names, in capitals with
+# underscores, exactly as they appear in game commands: DIAMOND_BLOCK,
+# ENCHANTED_GOLDEN_APPLE. Anything the server does not recognise is skipped
+# with a warning in your console.
+
+# -----------------------------------------------------------------------------
+# tracked_materials
+# Items that the protection engine watches. Shulker boxes of every colour are
+# always tracked regardless of this list - they're the primary laundering
+# vector and stay hardcoded.
+#
+# You do NOT need to add rails, carpets, TNT, sand/gravel/concrete powder here
+# to stop the classic block dupers - those contraptions are blocked directly by
+# the prevent-*-dupers toggles in config.yml. Only list items whose quantity
+# you want audited by the ledger (tracking very common blocks is noisy and
+# grows the database quickly).
+# -----------------------------------------------------------------------------
+tracked_materials:
+  - DIAMOND_BLOCK
+  - NETHERITE_INGOT
+  - BEACON
+  - ENCHANTED_GOLDEN_APPLE
+  - SHULKER_BOX
+  - ELYTRA
+  - NETHER_STAR
+
+# -----------------------------------------------------------------------------
+# How many a player could honestly gain in one minute
+#
+# Set the most of an item anyone could realistically come by in a minute of
+# normal play. Going past it does not accuse anyone on its own; it is one more
+# reason to look, on top of everything else. Leave an item out to stop
+# counting its rate at all.
+#
+# Only items listed under tracked_materials above are counted, so an entry
+# here for anything else does nothing.
+# -----------------------------------------------------------------------------
+tmar_limits:
+  ANCIENT_DEBRIS: 20
+  DIAMOND_BLOCK: 10
+  ENCHANTED_GOLDEN_APPLE: 2
+  NETHERITE_INGOT: 15
+  BEACON: 5
+
+# -----------------------------------------------------------------------------
+# How many unexplained extras are worth an alert
+#
+# How many more of an item a player can be carrying than the plugin can
+# account for before you hear about it. Valuable things deserve a smaller
+# number. 'default' covers any watched item not named here.
+# -----------------------------------------------------------------------------
+alert_thresholds:
+  ENCHANTED_GOLDEN_APPLE: 1
+  BEACON: 1
+  NETHER_STAR: 1
+  ELYTRA: 1
+  NETHERITE_INGOT: 2
+  DIAMOND_BLOCK: 3
+  default: 5

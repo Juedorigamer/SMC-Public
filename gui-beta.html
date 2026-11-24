@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SMC GUI Beta - Modo Visual (Sin Conexión)</title>
+<style>
+  :root {
+    --bg: #0b0c10;
+    --panel: #1a1b26;
+    --accent: #00d2ff;
+    --ok: #00ff88;
+    --warn: #ffcc00;
+    --err: #ff4444;
+    --muted: #888;
+    --border: #333;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', 'Consolas', 'Monaco', monospace;
+    background: var(--bg);
+    color: #eee;
+    padding: 16px;
+  }
+  h1 {
+    font-size: 1.2rem;
+    color: var(--accent);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .badge {
+    font-size: 0.75rem;
+    background: #222;
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 16px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .panel h2 {
+    font-size: 0.9rem;
+    color: var(--accent);
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+  }
+  .field {
+    margin-bottom: 12px;
+  }
+  .field label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  input[type="text"], input[type="time"], input[type="number"], select {
+    width: 100%;
+    background: #0f1018;
+    border: 1px solid var(--border);
+    color: #eee;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+  }
+  input[type="text"]:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .row > div { flex: 1; }
+  .switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    width: 44px; height: 24px;
+    background: #333;
+    border-radius: 12px;
+    position: relative;
+    transition: 0.2s;
+  }
+  .slider:before {
+    content: ''; position: absolute; height: 18px; width: 18px;
+    left: 3px; top: 3px; background: #eee; border-radius: 50%; transition: 0.2s;
+  }
+  input:checked + .slider { background: var(--accent); }
+  input:checked + .slider:before { transform: translateX(20px); }
+  .slider.off { background: #444; }
+  .slider.off:before { background: #aaa; }
+
+  .btn {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    font-weight: bold;
+    transition: 0.2s;
+  }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-danger { background: var(--err); color: #fff; }
+  .btn-danger:hover { filter: brightness(1.1); }
+  .btn-secondary { background: #333; color: #eee; border: 1px solid var(--border); }
+  .btn-secondary:hover { background: #444; }
+  .btn-group { display: flex; gap: 10px; margin-top: 12px; }
+
+  /* Modal doble verificación */
+  .modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+    display: none; z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    width: 420px;
+    max-width: 90vw;
+  }
+  .modal h3 { color: var(--warn); margin-bottom: 12px; font-size: 1rem; }
+  .modal p { color: #eee; font-size: 0.9rem; margin-bottom: 16px; line-height: 1.4; }
+  .checkbox-group {
+    margin-bottom: 12px;
+    display: flex; align-items: flex-start; gap: 8px;
+  }
+  .checkbox-group input { margin-top: 2px; }
+  .checkbox-group label { font-size: 0.85rem; color: #eee; }
+  .confirm-input {
+    width: 100%; margin-bottom: 16px;
+  }
+  .hint { font-size: 0.75rem; color: var(--muted); margin-top: 8px; }
+
+  /* Logs */
+  #logs {
+    background: #05050a;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    height: 520px;
+    overflow-y: auto;
+    font-family: 'Consolas', monospace;
+    font-size: 0.8rem;
+    line-height: 1.4;
+  }
+  .log-entry {
+    margin: 4px 0;
+    padding: 2px 4px;
+    border-left: 3px solid transparent;
+  }
+  .log-ok { border-left-color: var(--ok); color: var(--ok); }
+  .log-err { border-left-color: var(--err); color: var(--err); }
+  .log-warn { border-left-color: var(--warn); color: var(--warn); }
+  .log-info { border-left-color: var(--accent); color: var(--accent); }
+  .log-time { color: var(--muted); margin-right: 8px; white-space: nowrap; }
+
+  /* Estado */
+  .status-row {
+    display: flex; gap: 16px; margin-bottom: 12px;
+    font-size: 0.85rem;
+  }
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    border: 1px solid transparent;
+  }
+  .pill-ok { background: rgba(0,255,136,0.15); color: var(--ok); border-color: var(--ok); }
+  .pill-err { background: rgba(255,68,68,0.15); color: var(--err); border-color: var(--err); }
+  .pill-warn { background: rgba(255,204,0,0.15); color: var(--warn); border-color: var(--warn); }
+  .pill-info { background: rgba(0,210,255,0.15); color: var(--accent); border-color: var(--accent); }
+
+  .footer {
+    margin-top: 16px;
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<h1>⚙️ SMC GUI <span class="badge">BETA — VISUAL (Sin conexión real)</span></h1>
+
+<div class="grid">
+  <!-- Panel de configuración -->
+  <div class="panel">
+    <h2>1. Conexión</h2>
+    <div class="field">
+      <label>Host</label>
+      <input type="text" id="host" value="127.0.0.1">
+    </div>
+    <div class="row">
+      <div style="flex:1">
+        <label>Puerto</label>
+        <input type="number" id="port" value="25565">
+      </div>
+      <div style="flex:1">
+        <label>Versión del cliente</label>
+        <select id="version">
+          <option value="auto">auto (detectar)</option>
+          <option value="26.1">26.1 (protocolo 775)</option>
+          <option value="1.21.8">1.21.8 (protocolo 772)</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Auth</label>
+      <select id="auth">
+        <option value="offline">offline (cracked)</option>
+        <option value="microsoft">microsoft</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Cuenta autorizada</label>
+      <input type="text" id="account" value="Auditor" placeholder="Cuenta de la auditoría">
+    </div>
+    <div class="switch">
+      <label>Acceso directo (sin ViaProxy)</label>
+      <input type="checkbox" id="direct" checked>
+      <span class="slider"></span>
+    </div>
+
+    <h2>2. Modalidad / Backend</h2>
+    <div class="field">
+      <label>Modalidad del servidor</label>
+      <select id="mode">
+        <option value="towny">⚔ Towny</option>
+        <option value="skyblock">✦ Skyblock</option>
+        <option value="lobby">🏠 Lobby</option>
+        <option value="eventos">🎪 Eventos</option>
+        <option value="otro">Otro (especificar abajo)</option>
+      </select>
+    </div>
+    <div id="modeOtro" class="hidden" style="margin-top:8px;">
+      <label>Nombre del backend</label>
+      <input type="text" id="modeOtroValue" placeholder="ej. supervivencia, creative, facciones...">
+    </div>
+
+    <h2>3. Ventana y tiempo</h2>
+    <div class="row">
+      <div style="flex:1">
+        <label>Inicio (HH:MM)</label>
+        <input type="time" id="winFrom" value="12:00">
+      </div>
+      <div style="flex:1">
+        <label>Fin (HH:MM)</label>
+        <input type="time" id="winUntil" value="13:00">
+      </div>
+    </div>
+    <div class="field">
+      <label>Tiempo de sesión (minutos)</label>
+      <input type="number" id="sessionMins" value="10" min="1" max="120">
+    </div>
+    <div class="field">
+      <label>Intervalo mínimo entre comandos (segundos)</label>
+      <input type="number" id="interval" value="5" min="1" max="60">
+    </div>
+    <div id="windowStatus" class="pill pill-info" style="margin-top:8px; display:inline-block;">
+      Ventana: dentro del horario autorizado (simulado)
+    </div>
+
+    <h2>3. Nivel de sondeo</h2>
+    <div class="field">
+      <label>Nivel</label>
+      <select id="level" onchange="toggleAggressive()">
+        <option value="minimo">Mínimo (solo /version, /plugins)</option>
+        <option value="estandar">Estándar (añade /towny, /town, /nation, /plot, /res, /money, /baltop)</option>
+        <option value="agresivo">Agresivo (tab-complete completo, GUIs)</option>
+      </select>
+    </div>
+    <div id="aggressiveConfirm" class="hidden">
+      <div class="field">
+        <label>Doble verificación — modo agresivo</label>
+        <div class="checkbox-group">
+          <input type="checkbox" id="aggressiveCheck">
+          <label>Entiendo que este nivel puede ser detectado como comportamiento de bot</label>
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="aggressiveAuth">
+          <label>Tengo autorización escrita del dueño para este nivel</label>
+        </div>
+        <input type="text" id="aggressivePhrase" class="confirm-input" placeholder="Escribe: ACEPTÓ RIESGO DE DETECCIÓN">
+        <div class="hint">Sin las tres cosas marcadas, el botón iniciar queda bloqueado.</div>
+      </div>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-primary" id="btnStart">Iniciar simulación</button>
+      <button class="btn btn-danger" id="btnKill">Kill switch</button>
+      <button class="btn btn-secondary" id="btnExport">Exportar reporte (simulado)</button>
+    </div>
+  </div>
+
+  <!-- Panel de monitoreo -->
+  <div class="panel">
+    <h2>Estado y logs en vivo</h2>
+    <div class="status-row" id="statusRow">
+      <span class="pill pill-err" id="pillState">Detenido</span>
+      <span id="pillTimer">--:--</span>
+      <span id="pillCmds">Comandos: 0</span>
+      <span id="pillPackets">Paquetes: 0</span>
+    </div>
+    <div id="logs"></div>
+  </div>
+</div>
+
+<div class="footer">
+  SMC GUI Beta — Solo para sondeos read-only autorizados. No evade anti-bot. No usar fuera de la ventana autorizada.
+</div>
+
+<script>
+  const els = {
+    host: document.getElementById('host'),
+    port: document.getElementById('port'),
+    version: document.getElementById('version'),
+    auth: document.getElementById('auth'),
+    account: document.getElementById('account'),
+    direct: document.getElementById('direct'),
+    mode: document.getElementById('mode'),
+    modeOtro: document.getElementById('modeOtro'),
+    modeOtroValue: document.getElementById('modeOtroValue'),
+    winFrom: document.getElementById('winFrom'),
+    winUntil: document.getElementById('winUntil'),
+    sessionMins: document.getElementById('sessionMins'),
+    interval: document.getElementById('interval'),
+    windowStatus: document.getElementById('windowStatus'),
+    level: document.getElementById('level'),
+    aggressiveCheck: document.getElementById('aggressiveCheck'),
+    aggressiveAuth: document.getElementById('aggressiveAuth'),
+    aggressivePhrase: document.getElementById('aggressivePhrase'),
+    btnStart: document.getElementById('btnStart'),
+    btnKill: document.getElementById('btnKill'),
+    btnExport: document.getElementById('btnExport'),
+    pillState: document.getElementById('pillState'),
+    pillTimer: document.getElementById('pillTimer'),
+    pillCmds: document.getElementById('pillCmds'),
+    pillPackets: document.getElementById('pillPackets'),
+    logs: document.getElementById('logs'),
+  };
+
+  let running = false;
+  let timerInterval = null;
+  let logInterval = null;
+  let secondsLeft = 0;
+  let cmds = 0;
+  let packets = 0;
+
+  function log(type, msg) {
+    const div = document.createElement('div');
+    div.className = 'log-entry log-' + type;
+    const now = new Date();
+    const ts = now.toLocaleTimeString('es-AR', { hour12: false });
+    // textContent: innerHTML con input del usuario (host/cuenta) era un
+    // self-XSS; con este cambio el log nunca interpreta HTML.
+    const time = document.createElement('span');
+    time.className = 'log-time';
+    time.textContent = `[${ts}]`;
+    div.appendChild(time);
+    div.appendChild(document.createTextNode(String(msg)));
+    els.logs.appendChild(div);
+    els.logs.scrollTop = els.logs.scrollHeight;
+  }
+
+  function clearLogs() {
+    els.logs.innerHTML = '';
+  }
+
+  function updateTimer() {
+    const m = Math.floor(secondsLeft / 60);
+    const s = secondsLeft % 60;
+    els.pillTimer.textContent = `Tiempo: ${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+    if (secondsLeft > 0) secondsLeft--;
+    else stopSession(true);
+  }
+
+  function toggleAggressive() {
+    const box = document.getElementById('aggressiveConfirm');
+    if (els.level.value === 'agresivo') box.classList.remove('hidden');
+    else box.classList.add('hidden');
+    updateStartButton();
+  }
+
+  function toggleModeOtro() {
+    if (els.mode.value === 'otro') els.modeOtro.classList.remove('hidden');
+    else els.modeOtro.classList.add('hidden');
+  }
+
+  function modoNombre() {
+    if (els.mode.value === 'otro') return els.modeOtroValue.value.trim() || 'otro';
+    return els.mode.value;
+  }
+
+  function aggressiveReady() {
+    return els.level.value !== 'agresivo' ||
+      (els.aggressiveCheck.checked && els.aggressiveAuth.checked && els.aggressivePhrase.value.trim().toUpperCase() === 'ACEPTÓ RIESGO DE DETECCIÓN');
+  }
+
+  function inWindow() {
+    // Simulación: siempre dentro si los campos están llenos
+    return true;
+  }
+
+  function updateStartButton() {
+    const ready = inWindow() && aggressiveReady();
+    els.btnStart.disabled = !ready;
+    if (!ready) {
+      if (els.level.value === 'agresivo' && !aggressiveReady()) {
+        els.btnStart.title = 'Completa la doble verificación para modo agresivo';
+      } else {
+        els.btnStart.title = 'Listo para iniciar';
+      }
+    } else {
+      els.btnStart.title = 'Iniciar simulación';
+    }
+  }
+
+  function startSession() {
+    if (running) return;
+    if (!aggressiveReady()) {
+      alert('Completa la doble verificación para modo agresivo.');
+      return;
+    }
+    running = true;
+    secondsLeft = Number(els.sessionMins.value) * 60;
+    cmds = 0;
+    packets = 0;
+    updateCounters();
+    clearLogs();
+
+    els.pillState.textContent = 'En sesión';
+    els.pillState.className = 'pill pill-ok';
+    els.btnStart.disabled = true;
+    els.btnKill.disabled = false;
+
+    const modo = modoNombre();
+    log('info', `Configuración: ${els.host.value}:${els.port.value} | Cuenta: ${els.account.value} | Modalidad: ${modo} | Nivel: ${els.level.value}`);
+    log('info', `Acceso directo: ${els.direct.checked ? 'Sí' : 'No (Usar ViaProxy)'}`);
+    log('info', `Intervalo: ${els.interval.value}s | Sesión: ${els.sessionMins.value} min`);
+
+    // Construir logs dinámicamente según la modalidad seleccionada
+    const logsDinamicos = [
+      { t: 'info', m: 'Cargando configuración de sondeo...' },
+      { t: 'info', m: 'Validando ventana horaria autorizada...' },
+      { t: 'ok', m: 'Ventana dentro del rango permitido (12:00 - 13:00 UTC-3)' },
+      { t: 'info', m: 'Iniciando mineflayer (simulado)...' },
+      { t: 'ok', m: 'Spawn en lobby exitoso (entidad 6101)' },
+      { t: 'info', m: 'Enviando /login ****...' },
+      { t: 'ok', m: 'Autenticación aceptada por nLogin' },
+      { t: 'info', m: `Consultando backends vía /server ...` },
+      { t: 'info', m: 'Backends visibles: eventos, lobby, skyblock, towny' },
+      { t: 'info', m: `Cambiando a backend "${modo}"...` },
+      { t: 'warn', m: `Backend 26.3 detectado. Movimiento del cliente congelado (--freeze)` },
+      { t: 'ok', m: `Login en backend destino: entityId=9198458` },
+      { t: 'info', m: `Sondeo nivel: ${els.level.value}` },
+      { t: 'info', m: `Ejecutando /${modo} version...` },
+      { t: 'ok', m: `[${modo.charAt(0).toUpperCase() + modo.slice(1)}] Version: 0.103.2.13` },
+      { t: 'ok', m: `[${modo.charAt(0).toUpperCase() + modo.slice(1)}] Build Information: 28f763d on branch master.` },
+      { t: 'info', m: `Ejecutando /${modo}...` },
+      { t: 'err', m: 'Error » No tienes acceso a ese comando.' },
+      { t: 'info', m: `Ejecutando /${modo === 'towny' ? 'nation list' : modo}...` },
+      { t: 'err', m: 'ᴇʀʀᴏʀ • ɴᴏ ᴛɪᴇɴᴇꜱ ᴘᴇʀᴍɪꜱᴏꜱ' },
+      { t: 'info', m: 'Tab-complete recolectando prefijos...' },
+      { t: 'ok', m: '681 comandos visibles / 743 literales' },
+      { t: 'info', m: 'Sesión finalizada. Desconectando limpiamente...' },
+      { t: 'ok', m: 'Bot detenido. JSON guardado en out/' },
+    ];
+
+    // Reproducir logs uno por uno
+    let i = 0;
+    logInterval = setInterval(() => {
+      if (!running) { clearInterval(logInterval); return; }
+      if (i < logsDinamicos.length) {
+        const entry = logsDinamicos[i];
+        log(entry.t, entry.m);
+        if (entry.t === 'ok' && entry.m.includes('comandos visibles')) {
+          cmds = 681;
+          packets = 743;
+        } else if (entry.m.startsWith('Ejecutando')) {
+          cmds++;
+          packets += 2;
+        }
+        updateCounters();
+        i++;
+      } else {
+        clearInterval(logInterval);
+        setTimeout(() => {
+          if (running) stopSession(true);
+        }, 1500);
+      }
+    }, 900);
+
+    timerInterval = setInterval(updateTimer, 1000);
+    updateTimer();
+  }
+
+  function stopSession(normal = false) {
+    if (!running && !timerInterval && !logInterval) return;
+    running = false;
+    clearInterval(timerInterval);
+    clearInterval(logInterval);
+    els.pillState.textContent = normal ? 'Detenido (normal)' : 'Detenido';
+    els.pillState.className = normal ? 'pill pill-ok' : 'pill pill-err';
+    els.btnStart.disabled = false;
+    els.btnKill.disabled = true;
+    if (normal) log('ok', 'Simulación finalizada normalmente.');
+    else log('err', 'Simulación detenida por el usuario (kill switch).');
+    updateCounters();
+  }
+
+  function updateCounters() {
+    els.pillCmds.textContent = `Comandos: ${cmds}`;
+    els.pillPackets.textContent = `Paquetes: ${packets}`;
+  }
+
+  els.btnStart.addEventListener('click', startSession);
+  els.btnKill.addEventListener('click', () => stopSession(false));
+  els.btnExport.addEventListener('click', () => {
+    const report = {
+      tool: 'smc-gui-beta',
+      generatedAt: new Date().toISOString(),
+      mode: 'visual-simulado',
+      config: {
+        host: els.host.value,
+        port: Number(els.port.value),
+        version: els.version.value,
+        auth: els.auth.value,
+        account: els.account.value,
+        direct: els.direct.checked,
+        windowFrom: els.winFrom.value,
+        windowUntil: els.winUntil.value,
+        sessionMins: Number(els.sessionMins.value),
+        interval: Number(els.interval.value),
+        level: els.level.value,
+      },
+      result: {
+        simulated: true,
+        commands: cmds,
+        packets: packets,
+        townyVersion: '0.103.2.13',
+        note: 'Este reporte es de simulación visual. No se conectó a ningún servidor real.'
+      }
+    };
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `smc-simulado-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    log('info', 'Reporte simulado descargado.');
+  });
+
+  // Validaciones en tiempo real
+  [els.level, els.aggressiveCheck, els.aggressiveAuth, els.aggressivePhrase, els.mode].forEach(el => {
+    el.addEventListener('change', () => { toggleAggressive(); toggleModeOtro(); });
+    el.addEventListener('input', updateStartButton);
+  });
+  els.modeOtroValue.addEventListener('input', updateStartButton);
+  toggleModeOtro();
+  updateStartButton();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,3 @@
+@echo off
+cd /d "%~dp0"
+java -Xms512M -Xmx1024M -jar paper.jar --nogui
