@@ -5,6 +5,7 @@ tools/viaproxy/
 # Secretos y configs locales con rutas del secreto
 .secrets/
 app/autorun.json
+app/providers.json
 
 # Allowlist real de cuentas (el ejemplo versionado es accounts.txt.example)
 tools/lib/accounts.txt

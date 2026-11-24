@@ -1,73 +1,50 @@
 # SMC GUI (Electron)
 
-Aplicación de escritorio para lanzar `recon.js` con una interfaz gráfica.
+Aplicación de escritorio para operar el toolkit: sesión de recon, suite de
+herramientas, capa LLM y diagnóstico, con estética oscura tipo panel.
 
 ## Cómo abrirla
 
-Desde la carpeta del proyecto:
-
 ```bat
-node\npm.cmd run gui
+npm install
+npm run gui
 ```
 
-O con el acceso directo **`SMC - GUI`** del escritorio.
+## Secciones
 
-## Qué hace
-
-- Lanza `recon.js` como **proceso hijo** y muestra `stdout`/`stderr` en vivo.
-- **Kill switch** que mata el árbol de procesos del hijo (`taskkill /T /F`) y
-  solo reporta "terminado" cuando el proceso murió de verdad.
-- **Guard de ventana horaria** en el proceso principal. La franja la define
-  **`app/ventana-autorizada.json`** (archivo que la UI no puede escribir):
-  mientras `from`/`until` sean `null` (sin franja autorizada definida), ninguna
-  sesión remota puede iniciar. La UI solo muestra la franja; si sus campos no
-  coinciden con el archivo, gana el archivo.
-- **Objetivos locales exentos**: una conexión directa a `127.0.0.1`/`localhost`
-  (el lab propio) no requiere franja autorizada. Vía ViaProxy SIEMPRE cuenta
-  como producción (el proxy existe para alcanzar el servidor objetivo).
-- **Instancia única**: una segunda ventana no lanza una segunda sesión.
-- **Read-only por defecto**. `--allow-writes` solo se activa con la frase
-  `ENTIENDO QUE ESTO MODIFICA ESTADO`.
-- **Modo agresivo** con doble verificación: dos casillas + frase
-  `ACEPTÓ RIESGO DE DETECCIÓN`.
-- **ViaProxy**: botones para iniciar/detener el proxy local 26.3.
-- **Generar informe**: ejecuta `report.js` sobre el JSON de la sesión (con
-  timeout de 60 s para no trabar el botón).
-- **Redacción**: los logs enmascaran `/login`, `/register` y sus alias; el
-  volcado de `--autorun` no incluye la ruta del secreto; `recon.js` corre con
-  `--redact`.
-- **Bloqueo de navegación**: la ventana no navega ni abre pop-ups (evita que
-  el preload se reinyecte en contenido no confiable). El renderer solo puede
-  abrir rutas dentro del proyecto.
-
-## Niveles de sondeo
-
-| Nivel | Flags que envía |
+| Sección | Qué hay |
 |---|---|
-| Mínimo | `--no-probe --no-tab` |
-| Estándar | `--profile towny` (si la modalidad es Towny) + tab-complete base |
-| Agresivo | Estándar + `--extra-probe "/money\|/baltop\|/warps\|/spawn\|/shop\|/ah"` + `--trace --packet-log` |
+| **Panel / Recon** | Sesión de reconocimiento (conexión, ventana, nivel, escrituras, ViaProxy, acciones). Guard de franja del lado del main. |
+| **Herramientas** | 12 tools con formulario propio (version-probe, ah-test, kit-test, packet-race, cf-test, towny-probe, llm-digest, cve-check, reconcile, plugin-list, econ-summary, informe consolidado). Salida al log y a un panel de resultado. Las tools en vivo aplican sus guardas solas: si falta ventana/cuenta/`--allow-writes`, la tool se niega a conectar y acá se ve por qué. |
+| **LLM & Providers** | CRUD de providers compatibles con la API de OpenAI (`/chat/completions`): OpenAI, OpenRouter, Ollama, LM Studio… Generación del digest de una corrida (offline) y análisis del servidor por el modelo con un prompt de analista. **Las apikeys viven solo en el proceso main** (`app/providers.json`, ignorado por git); el renderer nunca las recibe. También incluye el snippet para conectar el servidor MCP a OpenCode. |
+| **Skills** | Los playbooks de `skills/` en tarjetas; tocás uno y se lee acá. |
+| **Diagnóstico** | Entorno (Node/Electron), dependencias, guardas (franja autorizada, allowlist de cuentas), puertos locales (lab 25599 / ViaProxy 25577), MCP y últimos archivos. |
 
-## Acceso directo vs ViaProxy
+## Guardas (resumen)
 
-- **ON**: conecta al host/puerto configurados.
-- **OFF**: conecta a `127.0.0.1:25577` (ViaProxy) y usa versión 26.1 contra el proxy.
-  Si el puerto no está abierto, la app rechaza el inicio.
+- **Ventana horaria** validada en el **proceso principal** contra
+  `app/ventana-autorizada.json` (la UI no puede autorizarse a sí misma).
+  Con `from/until` en `null`, ninguna sesión remota inicia.
+- **Read-only por defecto**; `--allow-writes` requiere la frase de confirmación.
+- **Kill switch** real: espera la muerte del árbol de procesos.
+- **Instancia única**; navegación bloqueada (`setWindowOpenHandler` deny);
+  el renderer solo puede abrir rutas dentro del proyecto.
+- Conexiones directas a `127.0.0.1`/`localhost` (lab propio) no requieren franja.
+- Logs con secretos enmascarados; `recon.js` corre siempre con `--redact`.
 
 ## Archivos
 
 ```
 app/
-├── main.js                  # proceso principal (IPC, spawn, guard, ViaProxy)
-├── preload.js               # API segura para el renderer
+├── main.js                  # proceso principal (IPC, spawn, guard, ViaProxy, LLM fetch)
+├── preload.js               # API segura para el renderer (apikeys nunca cruzan)
+├── providers.json           # providers LLM (gitignored; lo crea la UI)
 ├── ventana-autorizada.json  # franja autorizada (la lee SOLO el main; null = sin franja)
 └── renderer/
-    ├── index.html           # UI
-    └── app.js               # lógica de la UI
+    ├── index.html           # UI (sidebar + secciones + log dock)
+    └── app.js               # lógica
 ```
 
 ## Pendiente
 
 - Empaquetado con `electron-builder` para distribuir un `.exe` autónomo.
-- Firma de código (si se distribuye fuera del equipo).
-- Empaquetar `recon.js`, `node_modules` y el Node portátil como recursos.

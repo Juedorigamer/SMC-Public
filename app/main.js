@@ -721,3 +721,268 @@ ipcMain.handle('report:generate', async () => {
 });
 
 ipcMain.handle('app:lastPaths', async () => ({ lastJson, lastReport }));
+
+// ---------------------------------------------------------------- LLM
+
+const PROVIDERS_FILE = path.join(__dirname, 'providers.json');
+const llmDigest = require('../tools/llm-digest');
+
+function readProviders() {
+  try {
+    const j = JSON.parse(fs.readFileSync(PROVIDERS_FILE, 'utf8').replace(/^\uFEFF/, ''));
+    if (Array.isArray(j)) return j;
+  } catch { /* sin archivo o invalido */ }
+  return [];
+}
+
+// Nunca devolvemos la apikey al renderer: solo si está configurada.
+ipcMain.handle('llm:providers', async () => {
+  const list = readProviders();
+  return list.map((p) => ({
+    id: p.id,
+    name: p.name,
+    baseURL: p.baseURL,
+    model: p.model,
+    hasKey: Boolean(p.apiKey),
+  }));
+});
+
+ipcMain.handle('llm:providers:save', async (_e, providers) => {
+  if (!Array.isArray(providers)) return { ok: false, error: 'formato inválido' };
+  const clean = [];
+  for (const p of providers) {
+    const name = String(p && p.name || '').trim();
+    const baseURL = String(p && p.baseURL || '').trim();
+    const model = String(p && p.model || '').trim();
+    let apiKey = String(p && p.apiKey || '').trim();
+    // clave vacía + id existente = conservar la anterior
+    if (!apiKey && p && p.id) {
+      const prev = readProviders().find((x) => x.id === p.id);
+      if (prev) apiKey = prev.apiKey || '';
+    }
+    if (!name || !baseURL || !model) continue;
+    if (!/^https?:\/\//i.test(baseURL)) continue;
+    clean.push({
+      id: String(p.id || `p${Date.now()}_${Math.floor(Math.random() * 1e6)}`),
+      name,
+      baseURL,
+      model,
+      apiKey,
+    });
+  }
+  try {
+    fs.writeFileSync(PROVIDERS_FILE, JSON.stringify(clean, null, 2) + '\n', 'utf8');
+    return { ok: true, count: clean.length };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('llm:digest', async (_e, jsonPath) => {
+  return buildDigest(jsonPath);
+});
+
+function buildDigest(jsonPath) {
+  const p = path.resolve(String(jsonPath || ''));
+  const rel = path.resolve(ROOT);
+  if (p !== rel && !p.startsWith(rel + path.sep)) return { ok: false, error: 'ruta fuera del proyecto' };
+  if (!fs.existsSync(p)) return { ok: false, error: `no existe: ${path.basename(p)}` };
+  let j;
+  try {
+    j = JSON.parse(fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, ''));
+  } catch (e) {
+    return { ok: false, error: `JSON inválido: ${e.message}` };
+  }
+  return { ok: true, digest: llmDigest.digest(j) };
+}
+
+// Análisis con un provider (compatible con la API de OpenAI: /chat/completions).
+// La apikey vive SOLO en el proceso principal y no se loguea nunca.
+ipcMain.handle('llm:analyze', async (_e, cfg) => {
+  const provider = readProviders().find((p) => p.id === String(cfg && cfg.providerId));
+  if (!provider) return { ok: false, error: 'provider inexistente' };
+  const dig = buildDigest(cfg && cfg.jsonPath);
+  if (!dig.ok) return dig;
+  const extra = String((cfg && cfg.extraPrompt) || '').slice(0, 2000);
+  const system = [
+    'Sos un analista de seguridad especializado en servidores Minecraft (Paper/Spigot + plugins de economía).',
+    'Recibís el digest de una corrida de reconocimiento READ-ONLY hecha con autorización del dueño del servidor.',
+    'Tu trabajo: 1) resumí qué corre el servidor (versión, plugins, economía, superficie);',
+    '2) señalá riesgos e hipótesis de auditoría concretas (versiones vulnerables conocidas, mecánicas de economía sospechosas, commands expuestos);',
+    '3) sugerí próximos pasos de verificación que sean read-only primero.',
+    'Respondé en Markdown, en español, conciso y estructurado. No inventes datos que no estén en el digest; si algo falta, decilo.',
+  ].join(' ');
+  const url = provider.baseURL.replace(/\/+$/, '') + '/chat/completions';
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}),
+      },
+      body: JSON.stringify({
+        model: provider.model,
+        temperature: 0.2,
+        messages: [
+          { role: 'system', content: system + (extra ? `\nPedido extra del auditor: ${extra}` : '') },
+          { role: 'user', content: dig.digest },
+        ],
+      }),
+      signal: AbortSignal.timeout(180000),
+    });
+    const j = await res.json().catch(() => null);
+    if (!res.ok) {
+      return { ok: false, error: `HTTP ${res.status}: ${JSON.stringify(j && j.error ? j.error : j).slice(0, 300)}` };
+    }
+    const text = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+    if (!text) return { ok: false, error: 'respuesta sin contenido (¿modelo correcto?)' };
+    return { ok: true, analysis: String(text), digest: dig.digest };
+  } catch (e) {
+    return { ok: false, error: `fallo de red: ${e.message}` };
+  }
+});
+
+// ---------------------------------------------------------------- tools
+
+// Herramientas ejecutables desde la UI (offline o con guardas propias:
+// si falta ventana/cuenta/escrituras, la tool muere sola con exit 3/4/5).
+const RUNNABLE_TOOLS = new Set([
+  'version-probe.js', 'towny-probe.js', 'cf-test.js', 'ah-test.js',
+  'kit-test.js', 'packet-race.js', 'llm-digest.js', 'cve-check.js',
+  'reconcile.js', 'plugin-list.js', 'econ-summary.js', 'gen-audit-report.js',
+  'shop-prices.js', 'zipinfo.js', 'decode-windows.js',
+]);
+
+let toolChild = null;
+ipcMain.handle('tools:run', async (_e, cfg) => {
+  const script = path.basename(String((cfg && cfg.tool) || ''));
+  if (!RUNNABLE_TOOLS.has(script)) return { ok: false, error: `tool no permitida: ${script}` };
+  const rawArgs = Array.isArray(cfg && cfg.args) ? cfg.args : [];
+  const args = rawArgs.map((a) => String(a)).filter((a) => a !== '');
+  if (toolChild) return { ok: false, error: 'ya hay una tool corriendo (esperá o cerrá la GUI).' };
+  sendLog('info', `[tool] node tools/${script} ${args.join(' ')}`);
+  return await new Promise((resolve) => {
+    let out = '';
+    const dec = new StringDecoder('utf8');
+    let buf = '';
+    toolChild = spawn(nodeCommand().cmd, [path.join(ROOT, 'tools', script), ...args], {
+      cwd: ROOT,
+      env: { ...process.env, ...nodeCommand().env },
+      windowsHide: true,
+    });
+    let settled = false;
+    const done = (v) => {
+      if (settled) return;
+      settled = true;
+      toolChild = null;
+      resolve(v);
+    };
+    const timer = setTimeout(() => {
+      try { toolChild && toolChild.kill('SIGKILL'); } catch { /* nada */ }
+      done({ ok: false, error: 'timeout de 10 minutos' });
+    }, 600000);
+    toolChild.stdout.on('data', (d) => {
+      buf += dec.write(d);
+      let idx;
+      while ((idx = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, idx).replace(/\r$/, '');
+        buf = buf.slice(idx + 1);
+        if (line) {
+          out += line + '\n';
+          sendLog('out', line);
+        }
+      }
+    });
+    toolChild.stderr.on('data', (d) => {
+      d.toString('utf8').split(/\r?\n/).filter(Boolean).forEach((l) => sendLog('err', l));
+    });
+    toolChild.on('error', (e) => { clearTimeout(timer); done({ ok: false, error: e.message }); });
+    toolChild.on('exit', (code) => {
+      clearTimeout(timer);
+      done({ ok: code === 0, code, output: out.slice(0, 200000) });
+    });
+  });
+});
+
+// ---------------------------------------------------------------- skills/docs
+
+ipcMain.handle('skills:list', async () => {
+  const dir = path.join(ROOT, 'skills');
+  let files = [];
+  try {
+    files = fs.readdirSync(dir).filter((f) => f.endsWith('.md'));
+  } catch { return { ok: true, skills: [] }; }
+  const skills = [];
+  for (const f of files) {
+    try {
+      const text = fs.readFileSync(path.join(dir, f), 'utf8').replace(/^\uFEFF/, '');
+      const name = (text.match(/^#\s+(.+)$/m) || [null, f])[1];
+      const summary = text
+        .split(/\n/)
+        .filter((l) => l && !l.startsWith('#') && !l.startsWith('>'))
+        .slice(0, 2)
+        .join(' ')
+        .slice(0, 220);
+      skills.push({ file: f, name, summary });
+    } catch { /* ignore */ }
+  }
+  return { ok: true, skills };
+});
+
+// Lectura de docs del proyecto (skills/, y .md de la raíz): sin ruta libre.
+ipcMain.handle('docs:read', async (_e, rel) => {
+  const relPath = String(rel || '');
+  if (!/^([\w.-]+\/?)*[\w.-]+\.md$/.test(relPath)) return { ok: false, error: 'ruta inválida' };
+  const allowedDirs = ['skills/', ''];
+  const p = path.resolve(path.join(ROOT, relPath));
+  const inRoot = p === ROOT || p.startsWith(path.resolve(ROOT) + path.sep);
+  const relFromRoot = path.relative(ROOT, p).replace(/\\/g, '/');
+  const allowed = allowedDirs.some((d) => d === '' ? !relFromRoot.includes('/') : relFromRoot.startsWith(d));
+  if (!inRoot || !allowed || relPath.includes('..')) return { ok: false, error: 'ruta no permitida' };
+  try {
+    return { ok: true, text: fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '') };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+// ---------------------------------------------------------------- diagnostico
+
+ipcMain.handle('diag:run', async () => {
+  const auth = authorizedWindow();
+  const accountsFile = path.join(ROOT, 'tools', 'lib', 'accounts.txt');
+  let accounts = { exists: false, count: 0 };
+  try {
+    const text = fs.readFileSync(accountsFile, 'utf8');
+    const list = text.split(/\r?\n/).map((s) => s.trim()).filter((s) => s && !s.startsWith('#'));
+    accounts = { exists: true, count: list.length };
+  } catch { /* sin allowlist */ }
+  return {
+    node: process.versions.node,
+    electron: process.versions.electron,
+    deps: {
+      mineflayer: fs.existsSync(path.join(ROOT, 'node_modules', 'mineflayer')),
+      electronApp: fs.existsSync(path.join(ROOT, 'node_modules', 'electron')),
+      viaproxy: fs.existsSync(path.join(ROOT, 'tools', 'viaproxy')) &&
+        (() => {
+          try { return fs.readdirSync(path.join(ROOT, 'tools', 'viaproxy')).some((f) => f.endsWith('.jar')); }
+          catch { return false; }
+        })(),
+    },
+    guards: {
+      window: auth.missing ? 'sin archivo de franja (app/ventana-autorizada.json)'
+        : auth.none ? 'sin franja vigente (null): sesiones remotas bloqueadas'
+        : `franja vigente ${auth.from}-${auth.until}`,
+      accounts,
+    },
+    ports: {
+      lab: await checkPort('127.0.0.1', 25599, 600),
+      viaproxy: await checkPort('127.0.0.1', 25577, 600),
+    },
+    mcp: {
+      file: fs.existsSync(path.join(ROOT, 'mcp-server.js')),
+      command: 'npm run mcp',
+    },
+    last: { lastJson, lastReport },
+  };
+});

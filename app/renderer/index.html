@@ -2,442 +2,369 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:">
 <title>SMC GUI</title>
 <style>
-  :root {
-    --bg: #0b0c10;
-    --panel: #15161f;
-    --panel2: #1a1b26;
-    --accent: #00d2ff;
-    --ok: #00ff88;
-    --warn: #ffcc00;
-    --err: #ff4444;
-    --muted: #8a8fa3;
-    --border: #2c2e3a;
-    --text: #e6e8ef;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; }
-  body {
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    font-size: 14px;
-    overflow: hidden;
-  }
-  .shell {
-    display: grid;
-    grid-template-columns: 400px 1fr;
-    height: 100vh;
-  }
-  .left {
-    overflow-y: auto;
-    padding: 14px;
-    border-right: 1px solid var(--border);
-    background: #0e0f15;
-  }
-  .right {
-    display: flex;
-    flex-direction: column;
-    padding: 14px;
-    min-width: 0;
-  }
-  h1 {
-    font-size: 1rem;
-    color: var(--accent);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 14px;
-    letter-spacing: 0.3px;
-  }
-  .badge {
-    font-size: 0.68rem;
-    color: var(--muted);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 1px 6px;
-    font-weight: 400;
-  }
-  h2 {
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--muted);
-    margin: 16px 0 8px;
-    padding-bottom: 5px;
-    border-bottom: 1px solid var(--border);
-  }
-  h2:first-of-type { margin-top: 0; }
-  .field { margin-bottom: 10px; }
-  .field label {
-    display: block;
-    font-size: 0.76rem;
-    color: var(--muted);
-    margin-bottom: 3px;
-  }
-  .row { display: flex; gap: 10px; }
-  .row > .field { flex: 1; min-width: 0; }
-  input[type="text"], input[type="number"], input[type="time"], select {
-    width: 100%;
-    background: #0a0b10;
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 6px 8px;
-    border-radius: 5px;
-    font-size: 0.85rem;
-    font-family: inherit;
-  }
-  input:focus, select:focus { outline: none; border-color: var(--accent); }
-  input[readonly] { color: var(--muted); }
-  .with-btn { display: flex; gap: 6px; }
-  .with-btn input { flex: 1; }
-  .btn {
-    border: none;
-    border-radius: 5px;
-    padding: 8px 12px;
-    font-size: 0.82rem;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: inherit;
-    transition: filter .15s, opacity .15s;
-    white-space: nowrap;
-  }
-  .btn:hover { filter: brightness(1.12); }
-  .btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
-  .btn-primary { background: var(--accent); color: #001018; }
-  .btn-danger { background: var(--err); color: #fff; }
-  .btn-ghost { background: #232533; color: var(--text); border: 1px solid var(--border); }
-  .btn-ok { background: #1f7a4d; color: #eafff3; }
-  .btn-sm { padding: 5px 9px; font-size: 0.76rem; }
-  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
-  .actions .btn { flex: 1; min-width: 100px; }
+:root{
+  --bg:#07090f; --panel:#0c1018; --card:#111726; --card2:#0e1420;
+  --line:#1c2436; --line2:#273350;
+  --txt:#e7ecf6; --mut:#8a94ab; --dim:#5c677e;
+  --ac:#7c5cff; --ac2:#22d3ee; --ok:#34d399; --warn:#fbbf24; --err:#f87171;
+  --mono:ui-monospace,'Cascadia Mono',Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--txt);font:13px/1.45 'Segoe UI',system-ui,sans-serif;overflow:hidden}
+.shell{display:grid;grid-template-columns:232px 1fr;height:100vh}
 
-  .switch-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 7px 0;
-  }
-  .switch-row label { font-size: 0.82rem; color: var(--text); }
-  .switch { position: relative; width: 42px; height: 22px; flex: 0 0 auto; }
-  .switch input { opacity: 0; width: 0; height: 0; }
-  .slider {
-    position: absolute; inset: 0;
-    background: #333645;
-    border-radius: 11px;
-    transition: .18s;
-    cursor: pointer;
-  }
-  .slider:before {
-    content: '';
-    position: absolute;
-    width: 16px; height: 16px;
-    left: 3px; top: 3px;
-    background: #cfd3e0;
-    border-radius: 50%;
-    transition: .18s;
-  }
-  input:checked + .slider { background: var(--accent); }
-  input:checked + .slider:before { transform: translateX(20px); background: #fff; }
+/* ---------- sidebar ---------- */
+aside{background:linear-gradient(180deg,#0a0e17,#07090f);border-right:1px solid var(--line);display:flex;flex-direction:column}
+.logo{padding:18px 18px 14px;display:flex;align-items:baseline;gap:8px}
+.logo b{font-size:19px;letter-spacing:2px;color:var(--txt)}
+.logo b em{color:var(--ac);font-style:normal}
+.logo span{font-size:10px;color:var(--dim);letter-spacing:1px;text-transform:uppercase}
+nav{padding:6px 10px;display:flex;flex-direction:column;gap:3px;flex:1}
+.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border:0;border-radius:9px;background:transparent;color:var(--mut);font:500 13px 'Segoe UI';cursor:pointer;text-align:left;transition:.15s}
+.nav-btn .ic{width:20px;text-align:center;font-size:14px;color:var(--dim)}
+.nav-btn:hover{background:#101728;color:var(--txt)}
+.nav-btn.active{background:linear-gradient(90deg,rgba(124,92,255,.18),rgba(124,92,255,.05));color:var(--txt);box-shadow:inset 2px 0 0 var(--ac)}
+.nav-btn.active .ic{color:var(--ac)}
+.sidefoot{padding:12px 16px;border-top:1px solid var(--line);font-size:11px;color:var(--dim)}
+.sidefoot .pill{margin-top:6px}
 
-  .pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 3px 9px;
-    border-radius: 20px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    border: 1px solid transparent;
-    white-space: nowrap;
-  }
-  .pill-ok { background: rgba(0,255,136,.12); color: var(--ok); border-color: rgba(0,255,136,.5); }
-  .pill-err { background: rgba(255,68,68,.12); color: var(--err); border-color: rgba(255,68,68,.5); }
-  .pill-warn { background: rgba(255,204,0,.12); color: var(--warn); border-color: rgba(255,204,0,.5); }
-  .pill-info { background: rgba(0,210,255,.12); color: var(--accent); border-color: rgba(0,210,255,.5); }
-  .pill-muted { background: #232533; color: var(--muted); border-color: var(--border); }
+/* ---------- topbar ---------- */
+main{display:flex;flex-direction:column;height:100vh;min-width:0}
+.topbar{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;border:1px solid var(--line2);background:var(--card);font:11px var(--mono);color:var(--mut);white-space:nowrap}
+.pill b{color:var(--txt);font-weight:600}
+.pill-ok{border-color:rgba(52,211,153,.4);color:var(--ok)}
+.pill-err{border-color:rgba(248,113,113,.4);color:var(--err)}
+.pill-warn{border-color:rgba(251,191,36,.4);color:var(--warn)}
+.pill-info{border-color:rgba(124,92,255,.45);color:#b6a4ff}
+.pill-muted{color:var(--dim)}
+.spacer{flex:1}
 
-  .note {
-    font-size: 0.72rem;
-    color: var(--muted);
-    line-height: 1.45;
-    margin-top: 6px;
-  }
-  .warnbox {
-    background: rgba(255,204,0,.08);
-    border: 1px solid rgba(255,204,0,.35);
-    border-radius: 6px;
-    padding: 9px 10px;
-    font-size: 0.76rem;
-    color: var(--warn);
-    line-height: 1.45;
-    margin-top: 8px;
-  }
-  .hidden { display: none !important; }
+/* ---------- views ---------- */
+.views{flex:1;overflow:hidden;position:relative}
+.view{position:absolute;inset:0;padding:18px;overflow-y:auto;display:none}
+.view.active{display:block}
+.view::-webkit-scrollbar{width:10px}
+.view::-webkit-scrollbar-thumb{background:#1d2740;border-radius:8px}
+h1{font-size:16px;margin-bottom:4px}
+.sub{color:var(--mut);font-size:12px;margin-bottom:16px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:14px 16px}
+.card h3{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--ac2);margin-bottom:10px}
+.card h3 .dot{color:var(--ac)}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.field label{font-size:11px;color:var(--mut)}
+.field input,.field select,.field textarea{background:var(--card2);border:1px solid var(--line2);border-radius:8px;padding:7px 10px;color:var(--txt);font:12px var(--mono);outline:0;width:100%}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--ac);box-shadow:0 0 0 2px rgba(124,92,255,.15)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hint{font-size:11px;color:var(--dim);margin-top:2px}
+.inline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 
-  .statusbar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 10px;
-  }
-  .logs-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin-bottom: 6px;
-  }
-  .logs-head .title {
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--muted);
-  }
-  #logs {
-    flex: 1;
-    min-height: 0;
-    background: #05060a;
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    padding: 10px;
-    overflow-y: auto;
-    font-family: 'Consolas', 'Cascadia Mono', monospace;
-    font-size: 0.76rem;
-    line-height: 1.45;
-  }
-  .log-entry {
-    padding: 1px 4px;
-    border-left: 2px solid transparent;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-  .log-out { border-left-color: var(--ok); color: #b9f5d3; }
-  .log-err { border-left-color: var(--err); color: #ff9b9b; }
-  .log-info { border-left-color: var(--accent); color: #9fe8fb; }
-  .log-warn { border-left-color: var(--warn); color: #ffe08a; }
-  .log-viaproxy { border-left-color: #a78bfa; color: #d3c5ff; }
-  .log-time { color: #5b6070; margin-right: 7px; }
-  .log-empty { color: var(--muted); font-style: italic; }
+button{font:600 12px 'Segoe UI';border-radius:9px;padding:8px 14px;cursor:pointer;border:1px solid transparent;transition:.15s}
+.btn{background:var(--card2);border-color:var(--line2);color:var(--txt)}
+.btn:hover{border-color:var(--ac);color:#fff}
+.btn-primary{background:linear-gradient(135deg,var(--ac),#5b3fe0);color:#fff;box-shadow:0 4px 18px rgba(124,92,255,.25)}
+.btn-primary:hover{filter:brightness(1.12)}
+.btn-danger{background:linear-gradient(135deg,#e5484d,#b33);color:#fff}
+.btn-ok{background:linear-gradient(135deg,#0ea5e9,#0891b2);color:#fff}
+.btn:disabled{opacity:.4;cursor:not-allowed;filter:none}
+.btn-sm{padding:5px 10px;font-size:11px}
 
-  .footer {
-    margin-top: 8px;
-    font-size: 0.68rem;
-    color: #565a6b;
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-  }
-  ::-webkit-scrollbar { width: 9px; height: 9px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #2e3140; border-radius: 5px; }
-  ::-webkit-scrollbar-thumb:hover { background: #3d4154; }
+.chk{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--card2);border:1px solid var(--line2);border-radius:8px;cursor:pointer;font-size:12px;color:var(--mut)}
+.chk input{accent-color:var(--ac)}
+.chk:hover{border-color:var(--line2);color:var(--txt)}
+.hidden{display:none!important}
+
+/* ---------- tools ---------- */
+.tool-card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.tool-card h4{font-size:13px}
+.tool-card h4 code{color:var(--ac2);font:11px var(--mono)}
+.tool-card p{font-size:11.5px;color:var(--mut)}
+.tool-args{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.tool-foot{display:flex;gap:8px;align-items:center;margin-top:auto}
+.tag{font:10px var(--mono);padding:2px 8px;border-radius:99px;border:1px solid var(--line2);color:var(--dim)}
+.tag.w{border-color:rgba(251,191,36,.4);color:var(--warn)}
+.tag.ro{border-color:rgba(52,211,153,.35);color:var(--ok)}
+
+/* ---------- llm ---------- */
+#digestOut,#analysisOut,#docText,#toolOut{background:#05070c;border:1px solid var(--line);border-radius:9px;padding:12px;font:11.5px/1.5 var(--mono);color:#c8d3ea;white-space:pre-wrap;max-height:300px;overflow:auto}
+#analysisOut{border-color:rgba(124,92,255,.35)}
+.prov-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--card2);margin-bottom:6px}
+.prov-item b{font-size:12px}
+.prov-item span{font:10.5px var(--mono);color:var(--mut)}
+.snippet{background:#05070c;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font:11px/1.5 var(--mono);color:#9fe8c8;white-space:pre;overflow:auto;margin-top:8px}
+
+/* ---------- skills ---------- */
+.skill-card{cursor:pointer}
+.skill-card:hover{border-color:var(--ac)}
+
+/* ---------- diag ---------- */
+.diag-item{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
+.diag-item:last-child{border-bottom:0}
+.diag-item span{color:var(--mut);font-size:12px}
+.diag-item b{font:11.5px var(--mono);color:var(--txt)}
+.diag-item b.ok{color:var(--ok)} .diag-item b.err{color:var(--err)} .diag-item b.warn{color:var(--warn)}
+
+/* ---------- log dock ---------- */
+.logdock{border-top:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;height:220px}
+.logdock.collapsed{height:38px}
+.logdock-head{display:flex;align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none}
+.logdock-head .pill{cursor:default}
+.logdock.collapsed #logs{display:none}
+#logs{flex:1;overflow-y:auto;padding:8px 14px;font:11.5px/1.5 var(--mono);background:#05070c}
+.log-entry{white-space:pre-wrap;word-break:break-word;padding:1px 0}
+.log-time{color:var(--dim);margin-right:8px}
+.log-out{color:#c8d3ea} .log-err{color:var(--err)} .log-info{color:#9db4e8} .log-warn{color:var(--warn)} .log-viaproxy{color:var(--ac2)}
+.log-empty{color:var(--dim)}
+.footerOut{font:11px var(--mono);color:var(--dim);padding:2px 14px 6px}
 </style>
 </head>
 <body>
 <div class="shell">
-  <!-- Columna de configuración -->
-  <aside class="left">
-    <h1>⚙️ SMC GUI <span class="badge">Electron</span></h1>
-
-    <h2>1. Conexión</h2>
-    <div class="row">
-      <div class="field" style="flex:2">
-        <label>Host</label>
-        <input type="text" id="host" value="127.0.0.1">
-      </div>
-      <div class="field" style="flex:1">
-        <label>Puerto</label>
-        <input type="number" id="port" value="25565" min="1" max="65535">
-      </div>
-    </div>
-    <div class="row">
-      <div class="field">
-        <label>Versión del cliente</label>
-        <select id="version">
-          <option value="auto">auto (detectar)</option>
-          <option value="26.1">26.1 (775)</option>
-          <option value="1.21.8">1.21.8 (772)</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Auth</label>
-        <select id="auth">
-          <option value="offline">offline (cracked)</option>
-          <option value="microsoft">microsoft</option>
-        </select>
-      </div>
-    </div>
-    <div class="field">
-      <label>Cuenta autorizada</label>
-      <input type="text" id="account" value="Auditor" placeholder="Cuenta de la auditoría">
-    </div>
-    <div class="field">
-      <label>Archivo de contraseña (login-file)</label>
-      <div class="with-btn">
-        <input type="text" id="loginFile" readonly placeholder="(sin archivo)">
-        <button class="btn btn-ghost btn-sm" id="btnPickLogin">Elegir</button>
-      </div>
-    </div>
-    <div class="switch-row">
-      <label for="direct">Acceso directo (sin ViaProxy)</label>
-      <span class="switch">
-        <input type="checkbox" id="direct" checked>
-        <span class="slider"></span>
-      </span>
-    </div>
-    <div class="row" style="align-items:center; margin-top:2px;">
-      <span class="pill pill-muted" id="vpStatus">ViaProxy: detenido</span>
-      <div style="display:flex; gap:6px; margin-left:auto;">
-        <button class="btn btn-ghost btn-sm" id="btnVpStart">Iniciar VP</button>
-        <button class="btn btn-ghost btn-sm" id="btnVpStop">Detener VP</button>
-      </div>
-    </div>
-
-    <h2>2. Modalidad / Backend</h2>
-    <div class="field">
-      <label>Modalidad</label>
-      <select id="mode">
-        <option value="towny">⚔ Towny</option>
-        <option value="skyblock">✦ Skyblock</option>
-        <option value="lobby">🏠 Lobby (sin cambio)</option>
-        <option value="eventos">🎪 Eventos</option>
-        <option value="otro">Otro…</option>
-      </select>
-    </div>
-    <div class="field hidden" id="modeOtro">
-      <label>Nombre del backend</label>
-      <input type="text" id="modeOtroValue" placeholder="ej. supervivencia, creative, facciones…">
-    </div>
-
-    <h2>3. Ventana y tiempo</h2>
-    <div class="row">
-      <div class="field">
-        <label>Desde (HH:MM)</label>
-        <input type="time" id="winFrom" value="12:00">
-      </div>
-      <div class="field">
-        <label>Hasta (HH:MM)</label>
-        <input type="time" id="winUntil" value="13:00">
-      </div>
-    </div>
-    <div class="row">
-      <div class="field">
-        <label>Sesión (min)</label>
-        <input type="number" id="sessionMins" value="10" min="1" max="120">
-      </div>
-      <div class="field">
-        <label>Intervalo entre comandos (s)</label>
-        <input type="number" id="intervalSec" value="5" min="1" max="60">
-      </div>
-    </div>
-    <div style="margin-top:4px;">
-      <span class="pill pill-info" id="pillWindow">Ventana: —</span>
-    </div>
-
-    <h2>4. Nivel de sondeo</h2>
-    <div class="field">
-      <label>Nivel</label>
-      <select id="level">
-        <option value="minimo">Mínimo (sin probes, sin tab)</option>
-        <option value="estandar" selected>Estándar (probes base + tab)</option>
-        <option value="agresivo">Agresivo (probes extra + trace + packet-log)</option>
-      </select>
-    </div>
-    <div id="aggressiveConfirm" class="hidden">
-      <div class="warnbox">
-        <strong>Modo agresivo.</strong> Aumenta la superficie observada y la probabilidad de detección.
-        Para habilitarlo necesitás las dos casillas y la frase exacta.
-      </div>
-      <div style="margin-top:8px; display:flex; flex-direction:column; gap:7px;">
-        <label style="display:flex; gap:8px; align-items:flex-start; font-size:0.78rem;">
-          <input type="checkbox" id="aggressiveCheck">
-          Entiendo que este nivel puede ser detectado como comportamiento de bot.
-        </label>
-        <label style="display:flex; gap:8px; align-items:flex-start; font-size:0.78rem;">
-          <input type="checkbox" id="aggressiveAuth">
-          Tengo autorización escrita del dueño para este nivel.
-        </label>
-        <input type="text" id="aggressivePhrase" placeholder="Escribí: ACEPTÓ RIESGO DE DETECCIÓN">
-      </div>
-    </div>
-
-    <h2>5. Opciones avanzadas</h2>
-    <div class="switch-row">
-      <label for="freeze">Congelar movimiento (--freeze)</label>
-      <span class="switch">
-        <input type="checkbox" id="freeze" checked>
-        <span class="slider"></span>
-      </span>
-    </div>
-    <div class="switch-row">
-      <label for="trace">Trace de eventos (--trace)</label>
-      <span class="switch">
-        <input type="checkbox" id="trace" checked>
-        <span class="slider"></span>
-      </span>
-    </div>
-    <div class="switch-row">
-      <label for="packetLog">Log de paquetes (--packet-log)</label>
-      <span class="switch">
-        <input type="checkbox" id="packetLog">
-        <span class="slider"></span>
-      </span>
-    </div>
-    <div class="switch-row">
-      <label for="allowWrites" style="color:var(--warn);">Permitir escritura (--allow-writes)</label>
-      <span class="switch">
-        <input type="checkbox" id="allowWrites">
-        <span class="slider"></span>
-      </span>
-    </div>
-    <div id="writesConfirm" class="hidden">
-      <div class="warnbox">
-        <strong>Escritura habilitada.</strong> Esto puede comprar, vender, reclamar o modificar estado.
-        Solo con aprobación escrita y responsable de rollback asignado.
-      </div>
-      <input type="text" id="writesPhrase" style="margin-top:8px;" placeholder="Escribí: ENTIENDO QUE ESTO MODIFICA ESTADO">
-    </div>
-
-    <div class="actions">
-      <button class="btn btn-primary" id="btnStart">Iniciar sesión</button>
-      <button class="btn btn-danger" id="btnKill" disabled>Kill switch</button>
-    </div>
-    <div class="actions">
-      <button class="btn btn-ghost" id="btnReport" disabled>Generar informe</button>
-      <button class="btn btn-ghost" id="btnOpenReport" disabled>Abrir informe</button>
-      <button class="btn btn-ghost" id="btnOpenOut">Abrir out/</button>
-    </div>
-    <div class="note">
-      La ventana horaria la valida el proceso principal. Si estás fuera de la franja,
-      el botón falla aunque la interfaz lo permita.
+  <aside>
+    <div class="logo"><b>SMC<em>.</em></b><span>server auditor</span></div>
+    <nav>
+      <button class="nav-btn active" data-view="panel"><span class="ic">◧</span>Panel / Recon</button>
+      <button class="nav-btn" data-view="tools"><span class="ic">⚙</span>Herramientas</button>
+      <button class="nav-btn" data-view="llm"><span class="ic">◈</span>LLM &amp; Providers</button>
+      <button class="nav-btn" data-view="skills"><span class="ic">▣</span>Skills</button>
+      <button class="nav-btn" data-view="diag"><span class="ic">✚</span>Diagnóstico</button>
+    </nav>
+    <div class="sidefoot">
+      read-only por diseño<br>
+      <span class="pill pill-muted" id="pillFoot" style="margin-top:6px">—</span>
     </div>
   </aside>
 
-  <!-- Columna de estado y logs -->
-  <main class="right">
-    <div class="statusbar">
-      <span class="pill pill-muted" id="pillState">Detenido</span>
-      <span class="pill pill-muted" id="pillTimer">Sesión: --:--</span>
+  <main>
+    <div class="topbar">
+      <span class="pill pill-info" id="pillState">Estado: listo</span>
+      <span class="pill" id="pillTimer">Sesión: --:--</span>
+      <span class="pill" id="pillWindow">Ventana: —</span>
+      <span class="pill" id="vpStatus">ViaProxy: —</span>
+      <span class="spacer"></span>
+      <span class="pill pill-muted" id="pillOut" title="">sin JSON</span>
       <span class="pill pill-muted" id="pillCount">Líneas: 0</span>
-      <span class="pill pill-muted" id="pillOut" title="">JSON: —</span>
     </div>
-    <div class="logs-head">
-      <span class="title">Logs en vivo</span>
-      <div style="display:flex; gap:6px;">
-        <button class="btn btn-ghost btn-sm" id="btnCopyLog">Copiar</button>
-        <button class="btn btn-ghost btn-sm" id="btnClearLog">Limpiar</button>
+
+    <div class="views">
+
+      <!-- ============ PANEL / RECON ============ -->
+      <section class="view active" id="view-panel">
+        <h1>Panel de reconocimiento</h1>
+        <div class="sub">Sesión de recon read-only o con escrituras autorizadas. La franja la valida el proceso principal contra <code>app/ventana-autorizada.json</code>.</div>
+        <div class="grid g2">
+
+          <div class="card">
+            <h3><span class="dot">●</span> Conexión</h3>
+            <div class="row">
+              <div class="field"><label>Host</label><input type="text" id="host"></div>
+              <div class="field"><label>Puerto</label><input type="number" id="port"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label>Versión del cliente</label>
+                <select id="version">
+                  <option value="auto">auto (por ping)</option>
+                  <option value="1.21.8">1.21.8</option>
+                  <option value="1.21.4">1.21.4</option>
+                  <option value="1.20.4">1.20.4</option>
+                </select>
+              </div>
+              <div class="field"><label>Auth</label>
+                <select id="auth"><option value="offline">offline</option><option value="microsoft">microsoft</option></select>
+              </div>
+            </div>
+            <div class="row">
+              <div class="field"><label>Cuenta</label><input type="text" id="account" placeholder="Cuenta de la auditoría"></div>
+              <div class="field"><label>Archivo de login (.secrets)</label>
+                <div class="inline"><input type="text" id="loginFile" placeholder=".secrets/archivo.txt"><button class="btn btn-sm" id="btnPickLogin">…</button></div>
+              </div>
+            </div>
+            <label class="chk"><input type="checkbox" id="direct"> Conexión directa (sin ViaProxy)</label>
+          </div>
+
+          <div class="card">
+            <h3><span class="dot">●</span> Ventana y sesión</h3>
+            <div class="row">
+              <div class="field"><label>Franja autorizada — desde</label><input type="time" id="winFrom"></div>
+              <div class="field"><label>hasta</label><input type="time" id="winUntil"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label>Duración (min)</label><input type="number" id="sessionMins" value="10"></div>
+              <div class="field"><label>Intervalo entre comandos (s)</label><input type="number" id="intervalSec" value="5"></div>
+            </div>
+            <div class="field"><label>Backend</label>
+              <select id="mode">
+                <option value="lobby">lobby (sin salto)</option>
+                <option value="towny">towny</option>
+                <option value="skyblock">skyblock</option>
+                <option value="otro">otro…</option>
+              </select>
+            </div>
+            <div class="field hidden" id="modeOtro"><label>Nombre del backend</label><input type="text" id="modeOtroValue" placeholder="p. ej. survival"></div>
+          </div>
+
+          <div class="card">
+            <h3><span class="dot">●</span> Nivel de sondeo</h3>
+            <div class="field"><label>Nivel</label>
+              <select id="level">
+                <option value="minimo">Mínimo (sin sondeos)</option>
+                <option value="estandar">Estándar</option>
+                <option value="agresivo">Agresivo (doble verificación)</option>
+              </select>
+            </div>
+            <div class="grid" style="grid-template-columns:1fr 1fr">
+              <label class="chk"><input type="checkbox" id="freeze" checked> --freeze</label>
+              <label class="chk"><input type="checkbox" id="trace"> --trace</label>
+              <label class="chk"><input type="checkbox" id="packetLog"> packet-log</label>
+            </div>
+            <div class="grid hidden" id="aggressiveConfirm" style="margin-top:8px">
+              <label class="chk"><input type="checkbox" id="aggressiveCheck"> Confirmo aviso al staff</label>
+              <label class="chk"><input type="checkbox" id="aggressiveAuth"> Staff presente</label>
+              <div class="field"><label>Frase de riesgo</label><input type="text" id="aggressivePhrase" placeholder="ACEPTÓ RIESGO DE DETECCIÓN"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3><span class="dot">●</span> Escrituras (opcional)</h3>
+            <label class="chk"><input type="checkbox" id="allowWrites"> Habilitar escrituras (--allow-writes)</label>
+            <div class="grid hidden" id="writesConfirm" style="margin-top:8px">
+              <div class="field"><label>Frase de confirmación</label><input type="text" id="writesPhrase" placeholder="ENTIENDO QUE ESTO MODIFICA ESTADO"></div>
+              <div class="hint">Solo con autorización escrita del dueño (AUTORIZACION-PLANTILLA.md). Toda prueba: snapshot antes/después, una hipótesis por corrida.</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3><span class="dot">●</span> ViaProxy</h3>
+            <div class="inline">
+              <button class="btn btn-sm" id="btnVpStart">Iniciar</button>
+              <button class="btn btn-sm" id="btnVpStop">Detener</button>
+              <span class="hint">Traduce la versión si el backend es más nuevo que el cliente. Usa la versión del campo "Versión del cliente".</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3><span class="dot">●</span> Acciones</h3>
+            <div class="inline">
+              <button class="btn btn-primary" id="btnStart">▶ Iniciar sesión</button>
+              <button class="btn btn-danger" id="btnKill" disabled>■ Kill switch</button>
+              <button class="btn" id="btnReport" disabled>Informe</button>
+              <button class="btn" id="btnOpenReport" disabled>Abrir informe</button>
+              <button class="btn" id="btnOpenOut">Carpeta out/</button>
+            </div>
+            <div class="hint" id="footerOut">El JSON de la sesión queda en out/.</div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ============ HERRAMIENTAS ============ -->
+      <section class="view" id="view-tools">
+        <h1>Herramientas</h1>
+        <div class="sub">Suite de prueba y análisis. Las tools en vivo aplican sus guardas solas (cuenta, ventana ISO con offset, <code>--allow-writes</code>); si algo falta, la tool se niega a conectar y acá lo vas a ver.</div>
+        <div class="grid g3" id="toolsGrid"></div>
+        <div class="card hidden" id="toolResult" style="margin-top:14px">
+          <h3><span class="dot">●</span> Última salida</h3>
+          <div id="toolOut">—</div>
+        </div>
+      </section>
+
+      <!-- ============ LLM & PROVIDERS ============ -->
+      <section class="view" id="view-llm">
+        <h1>LLM &amp; Providers</h1>
+        <div class="sub">Capa de análisis con modelos: generá el digest de una corrida y, si querés, pedile a un provider (API compatible con OpenAI) un análisis del servidor. Las apikeys viven solo en el proceso principal (<code>app/providers.json</code>, ignorado por git).</div>
+        <div class="grid g2">
+
+          <div class="card">
+            <h3><span class="dot">●</span> Providers</h3>
+            <div id="providersList"><span class="hint">Sin providers configurados.</span></div>
+            <div class="grid" style="margin-top:10px">
+              <div class="row">
+                <div class="field"><label>Nombre</label><input type="text" id="provName" placeholder="p. ej. Ollama local"></div>
+                <div class="field"><label>Modelo</label><input type="text" id="provModel" placeholder="p. ej. llama3.1 / gpt-4o-mini"></div>
+              </div>
+              <div class="field"><label>Base URL (compatible /chat/completions)</label><input type="text" id="provURL" placeholder="http://localhost:11434/v1 o https://api.openai.com/v1"></div>
+              <div class="field"><label>API key (opcional, no se guarda en el renderer)</label><input type="password" id="provKey" placeholder="sk-… (se guarda solo en el main)"></div>
+              <div class="inline">
+                <button class="btn btn-sm" id="btnProvAdd">Agregar / actualizar</button>
+                <span class="hint" id="provHint"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3><span class="dot">●</span> Analizar servidor</h3>
+            <div class="field"><label>Provider</label><select id="llmProvider"></select></div>
+            <div class="field"><label>JSON de la corrida</label>
+              <div class="inline"><input type="text" id="llmJson" placeholder="out/recon-….json"><button class="btn btn-sm" id="btnLlmLast">Usar último</button></div>
+            </div>
+            <div class="field"><label>Pedido extra (opcional)</label><textarea id="llmExtra" rows="2" placeholder="p. ej. focate en la economía y los kits"></textarea></div>
+            <div class="inline">
+              <button class="btn" id="btnDigest">Digest (offline)</button>
+              <button class="btn btn-primary" id="btnAnalyze">◈ Analizar con LLM</button>
+            </div>
+            <div style="margin-top:10px">
+              <h3><span class="dot">●</span> Digest</h3>
+              <div id="digestOut">—</div>
+              <h3 style="margin-top:10px"><span class="dot">●</span> Análisis del modelo</h3>
+              <div id="analysisOut">—</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3><span class="dot">●</span> Servidor MCP (para agentes)</h3>
+            <p class="hint">El mismo toolkit, expuesto como tools MCP read-only para OpenCode/Claude/etc. 7 tools: ping, recon_readonly, llm_digest, plugin_list, cve_check, reconcile, econ_summary.</p>
+            <div class="snippet">opencode mcp add smc -- node mcp-server.js
+# o en opencode.json:
+"mcp": { "servers": { "smc": {
+  "type": "local",
+  "command": ["node", "mcp-server.js"],
+  "cwd": "."
+} } }</div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ============ SKILLS ============ -->
+      <section class="view" id="view-skills">
+        <h1>Skills</h1>
+        <div class="sub">Playbooks de técnicas, uno por archivo (<code>skills/</code>). Tocá uno para leerlo acá.</div>
+        <div class="grid g3" id="skillsGrid"></div>
+        <div class="card hidden" id="docViewer" style="margin-top:14px">
+          <h3><span class="dot">●</span> <span id="docTitle">—</span></h3>
+          <div id="docText">—</div>
+        </div>
+      </section>
+
+      <!-- ============ DIAGNOSTICO ============ -->
+      <section class="view" id="view-diag">
+        <h1>Diagnóstico</h1>
+        <div class="sub">Estado del entorno, las guardas y los puertos locales.</div>
+        <div class="inline" style="margin-bottom:12px">
+          <button class="btn btn-primary btn-sm" id="btnDiag">Ejecutar diagnóstico</button>
+          <span class="hint">Revisa dependencias, guardas, franja autorizada, allowlist de cuentas y puertos (lab 25599 / ViaProxy 25577).</span>
+        </div>
+        <div class="grid g2" id="diagGrid"><div class="card"><span class="hint">Tocá "Ejecutar diagnóstico".</span></div></div>
+      </section>
+
+    </div>
+
+    <div class="logdock" id="logdock">
+      <div class="logdock-head" id="logdockHead">
+        <span class="pill pill-muted">logs</span>
+        <span class="pill pill-muted" id="footerOut">—</span>
+        <span class="spacer"></span>
+        <button class="btn btn-sm" id="btnCopyLog">Copiar</button>
+        <button class="btn btn-sm" id="btnClearLog">Limpiar</button>
       </div>
-    </div>
-    <div id="logs"><div class="log-empty">Sin actividad todavía.</div></div>
-    <div class="footer">
-      <span>SMC · solo sondeos autorizados · sin evasión de anti-bot</span>
-      <span id="footerOut"></span>
+      <div id="logs"><div class="log-empty">— sin logs —</div></div>
     </div>
   </main>
 </div>
